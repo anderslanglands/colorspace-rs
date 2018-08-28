@@ -1,0 +1,12 @@
+cargo-features=["edition"]
+
+[package]
+edition="2018"
+name = "spectrum"
+version = "0.1.0"
+authors = ["Anders Langlands <anderslanglands@gmail.com>"]
+
+[dependencies]
+num = "0.2"
+lazy_static = "1.1"
+imath = { path = "../imath-rs" }
