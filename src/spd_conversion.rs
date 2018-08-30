@@ -1,9 +1,11 @@
+//! Explicit conversion to and from SPDs
+
 use super::spectral_power_distribution::SPD;
-use super::xyz::XYZf32;
-use super::color_matching_function::CMFData;
+use super::xyz::XYZ;
+use super::cmf::CMF;
 use super::traits::*;
 
-pub fn spd_to_xyz(spd: &SPD, cmf: &CMFData) -> XYZf32 {
+pub fn spd_to_xyz(spd: &SPD, cmf: &CMF) -> XYZ {
     let lambda_start = if spd.start() > cmf.x_bar.start() {
         spd.start()
     } else {
@@ -25,7 +27,7 @@ pub fn spd_to_xyz(spd: &SPD, cmf: &CMFData) -> XYZf32 {
         idx_end += 1;
     }
 
-    let mut xyz = XYZf32::zero();
+    let mut xyz = XYZ::zero();
     for i in idx_start..idx_end {
         let samp = spd[i];
         xyz.x += samp.1 * cmf.x_bar.value_at(samp.0);
@@ -36,7 +38,7 @@ pub fn spd_to_xyz(spd: &SPD, cmf: &CMFData) -> XYZf32 {
     xyz
 }
 
-pub fn spd_to_xyz_with_illuminant(spd: &SPD, cmf: &CMFData, illum: &SPD) -> XYZf32 {
+pub fn spd_to_xyz_with_illuminant(spd: &SPD, cmf: &CMF, illum: &SPD) -> XYZ {
     let lambda_start = if spd.start() > cmf.x_bar.start() {
         spd.start()
     } else {
@@ -58,7 +60,7 @@ pub fn spd_to_xyz_with_illuminant(spd: &SPD, cmf: &CMFData, illum: &SPD) -> XYZf
         idx_end += 1;
     }
 
-    let mut xyz = XYZf32::zero();
+    let mut xyz = XYZ::zero();
     let mut N = 0.0_f32;
     for i in idx_start..idx_end {
         let samp = spd[i];

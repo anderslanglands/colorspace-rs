@@ -10,3 +10,4 @@ authors = ["Anders Langlands <anderslanglands@gmail.com>"]
 num = "0.2"
 lazy_static = "1.1"
 imath = { path = "../imath-rs" }
+half = "1.1"

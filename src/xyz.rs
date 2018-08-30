@@ -1,13 +1,16 @@
+//! XYZ color type
+
 use super::traits::*;
 use std::fmt;
 use std::ops::{Index, IndexMut};
 use super::math::*;
+use super::chromaticity::Chromaticity;
+use std::convert::From;
 
-/// 3D generic vector
-/// Implemented for f32, f64, i32
+/// XYZ color type
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Default)]
-pub struct XYZ<T>
+pub struct XYZf<T>
 where
     T: Scalar,
 {
@@ -16,23 +19,22 @@ where
     pub z: T,
 }
 
-/// Type aliases
-pub type XYZf32 = XYZ<f32>;
+pub type XYZ = XYZf<f32>;
 
-impl<T> XYZ<T>
+impl<T> XYZf<T>
 where
     T: Scalar,
 {
-    pub fn new(x: T, y: T, z: T) -> XYZ<T> {
-        XYZ::<T> { x, y, z }
+    pub fn new(x: T, y: T, z: T) -> XYZf<T> {
+        XYZf::<T> { x, y, z }
     }
 
-    pub fn from_scalar(a: T) -> XYZ<T> {
-        XYZ::<T> { x: a, y: a, z: a }
+    pub fn from_scalar(a: T) -> XYZf<T> {
+        XYZf::<T> { x: a, y: a, z: a }
     }
 
     /// Returns true if self and v are equal with error no greater than e
-    pub fn equal_with_abs_error(self, v: XYZ<T>, e: T) -> bool
+    pub fn equal_with_abs_error(self, v: XYZf<T>, e: T) -> bool
     where
         T: PartialOrd,
     {
@@ -42,7 +44,7 @@ where
     }
 
     /// Returns true if self and v are equal with error no greater than e
-    pub fn equal_with_rel_error(self, v: XYZ<T>, e: T) -> bool
+    pub fn equal_with_rel_error(self, v: XYZf<T>, e: T) -> bool
     where
         T: Real,
     {
@@ -51,21 +53,36 @@ where
             && equal_with_rel_error(self.z, v.z, e)
     }
 
-    /// Calculate the squared length of the vector
-    pub fn length2(self) -> T {
-        self.x * self.x + self.y * self.y + self.z * self.z
+    pub fn normalized(&self) -> XYZf<T> {
+        *self / self.y
     }
 }
 
-impl<T> Zero for XYZ<T>
+impl XYZ {
+    pub fn from_chromaticity(c: Chromaticity, Y: f32) -> XYZ {
+        XYZ { 
+            x: c.x * Y / c.y,
+            y: Y,
+            z: (1.0 - c.x - c.y) * Y / c.y,
+        }
+    }
+}
+
+impl From<Chromaticity> for XYZ {
+    fn from(c: Chromaticity) -> XYZ {
+        XYZ::from_chromaticity(c, 1.0)
+    }
+}
+
+impl<T> Zero for XYZf<T>
 where
     T: Scalar,
 {
-    fn zero() -> XYZ<T>
+    fn zero() -> XYZf<T>
     where
         T: Scalar,
     {
-        XYZ::<T>::from_scalar(T::zero())
+        XYZf::<T>::from_scalar(T::zero())
     }
     fn is_zero(&self) -> bool
     where
@@ -75,31 +92,31 @@ where
     }
 }
 
-impl<T> One for XYZ<T>
+impl<T> One for XYZf<T>
 where
     T: Scalar,
 {
-    fn one() -> XYZ<T>
+    fn one() -> XYZf<T>
     where
         T: Scalar,
     {
-        XYZ::<T>::from_scalar(T::one())
+        XYZf::<T>::from_scalar(T::one())
     }
 }
 
-impl<T> Bounded for XYZ<T>
+impl<T> Bounded for XYZf<T>
 where
     T: Scalar,
 {
-    fn min_value() -> XYZ<T> {
-        XYZ::<T> {
+    fn min_value() -> XYZf<T> {
+        XYZf::<T> {
             x: T::min_value(),
             y: T::min_value(),
             z: T::min_value(),
         }
     }
-    fn max_value() -> XYZ<T> {
-        XYZ::<T> {
+    fn max_value() -> XYZf<T> {
+        XYZf::<T> {
             x: T::max_value(),
             y: T::max_value(),
             z: T::max_value(),
@@ -107,7 +124,7 @@ where
     }
 }
 
-impl<T> Index<usize> for XYZ<T>
+impl<T> Index<usize> for XYZf<T>
 where
     T: Scalar,
 {
@@ -118,12 +135,12 @@ where
             0 => &self.x,
             1 => &self.y,
             2 => &self.z,
-            _ => panic!("Tried to access XYZ with index of {}", i),
+            _ => panic!("Tried to access XYZf with index of {}", i),
         }
     }
 }
 
-impl<T> IndexMut<usize> for XYZ<T>
+impl<T> IndexMut<usize> for XYZf<T>
 where
     T: Scalar,
 {
@@ -132,12 +149,12 @@ where
             0 => &mut self.x,
             1 => &mut self.y,
             2 => &mut self.z,
-            _ => panic!("Tried to access XYZ with index of {}", i),
+            _ => panic!("Tried to access XYZf with index of {}", i),
         }
     }
 }
 
-impl<T> fmt::Display for XYZ<T>
+impl<T> fmt::Display for XYZf<T>
 where
     T: Scalar + fmt::Display,
 {
@@ -147,14 +164,14 @@ where
 }
 
 /// Addition operator
-impl<T> Add for XYZ<T>
+impl<T> Add for XYZf<T>
 where
     T: Scalar,
 {
-    type Output = XYZ<T>;
+    type Output = XYZf<T>;
 
-    fn add(self, rhs: XYZ<T>) -> XYZ<T> {
-        XYZ::<T> {
+    fn add(self, rhs: XYZf<T>) -> XYZf<T> {
+        XYZf::<T> {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
             z: self.z + rhs.z,
@@ -163,14 +180,14 @@ where
 }
 
 /// Subtraction operator
-impl<T> Sub for XYZ<T>
+impl<T> Sub for XYZf<T>
 where
     T: Scalar,
 {
-    type Output = XYZ<T>;
+    type Output = XYZf<T>;
 
-    fn sub(self, rhs: XYZ<T>) -> XYZ<T> {
-        XYZ::<T> {
+    fn sub(self, rhs: XYZf<T>) -> XYZf<T> {
+        XYZf::<T> {
             x: self.x - rhs.x,
             y: self.y - rhs.y,
             z: self.z - rhs.z,
@@ -179,14 +196,14 @@ where
 }
 
 /// Multiplication operator
-impl<T> Mul for XYZ<T>
+impl<T> Mul for XYZf<T>
 where
     T: Scalar,
 {
-    type Output = XYZ<T>;
+    type Output = XYZf<T>;
 
-    fn mul(self, rhs: XYZ<T>) -> XYZ<T> {
-        XYZ::<T> {
+    fn mul(self, rhs: XYZf<T>) -> XYZf<T> {
+        XYZf::<T> {
             x: self.x * rhs.x,
             y: self.y * rhs.y,
             z: self.z * rhs.z,
@@ -195,14 +212,14 @@ where
 }
 
 /// Division operator
-impl<T> Div for XYZ<T>
+impl<T> Div for XYZf<T>
 where
     T: Scalar,
 {
-    type Output = XYZ<T>;
+    type Output = XYZf<T>;
 
-    fn div(self, rhs: XYZ<T>) -> XYZ<T> {
-        XYZ::<T> {
+    fn div(self, rhs: XYZf<T>) -> XYZf<T> {
+        XYZf::<T> {
             x: self.x / rhs.x,
             y: self.y / rhs.y,
             z: self.z / rhs.z,
@@ -211,14 +228,14 @@ where
 }
 
 /// Unary negation
-impl<T> Neg for XYZ<T>
+impl<T> Neg for XYZf<T>
 where
     T: Scalar,
 {
-    type Output = XYZ<T>;
+    type Output = XYZf<T>;
 
-    fn neg(self) -> XYZ<T> {
-        XYZ::<T> {
+    fn neg(self) -> XYZf<T> {
+        XYZf::<T> {
             x: -self.x,
             y: -self.y,
             z: -self.z,
@@ -227,14 +244,14 @@ where
 }
 
 /// Multiplication by a T
-impl<T> Mul<T> for XYZ<T>
+impl<T> Mul<T> for XYZf<T>
 where
     T: Scalar,
 {
-    type Output = XYZ<T>;
+    type Output = XYZf<T>;
 
-    fn mul(self, rhs: T) -> XYZ<T> {
-        XYZ::<T> {
+    fn mul(self, rhs: T) -> XYZf<T> {
+        XYZf::<T> {
             x: self.x * rhs,
             y: self.y * rhs,
             z: self.z * rhs,
@@ -243,14 +260,14 @@ where
 }
 
 /// Division by a T
-impl<T> Div<T> for XYZ<T>
+impl<T> Div<T> for XYZf<T>
 where
     T: Scalar,
 {
-    type Output = XYZ<T>;
+    type Output = XYZf<T>;
 
-    fn div(self, rhs: T) -> XYZ<T> {
-        XYZ::<T> {
+    fn div(self, rhs: T) -> XYZf<T> {
+        XYZf::<T> {
             x: self.x / rhs,
             y: self.y / rhs,
             z: self.z / rhs,
@@ -259,14 +276,14 @@ where
 }
 
 /// Addition by a T
-impl<T> Add<T> for XYZ<T>
+impl<T> Add<T> for XYZf<T>
 where
     T: Scalar,
 {
-    type Output = XYZ<T>;
+    type Output = XYZf<T>;
 
-    fn add(self, rhs: T) -> XYZ<T> {
-        XYZ::<T> {
+    fn add(self, rhs: T) -> XYZf<T> {
+        XYZf::<T> {
             x: self.x + rhs,
             y: self.y + rhs,
             z: self.z + rhs,
@@ -275,14 +292,14 @@ where
 }
 
 /// Subtraction by a T
-impl<T> Sub<T> for XYZ<T>
+impl<T> Sub<T> for XYZf<T>
 where
     T: Scalar,
 {
-    type Output = XYZ<T>;
+    type Output = XYZf<T>;
 
-    fn sub(self, rhs: T) -> XYZ<T> {
-        XYZ::<T> {
+    fn sub(self, rhs: T) -> XYZf<T> {
+        XYZf::<T> {
             x: self.x - rhs,
             y: self.y - rhs,
             z: self.z - rhs,
@@ -290,13 +307,13 @@ where
     }
 }
 
-/// Macro to implement right-side multiplication: T * XYZ<T>
+/// Macro to implement right-side multiplication: T * XYZf<T>
 macro_rules! vec3_impl_rhs_mul {
     ($($t:ty)*) => ($(
-        impl Mul<XYZ<$t>> for $t {
-            type Output = XYZ<$t>;
-            fn mul(self, rhs: XYZ<$t>) -> XYZ<$t> {
-                XYZ {
+        impl Mul<XYZf<$t>> for $t {
+            type Output = XYZf<$t>;
+            fn mul(self, rhs: XYZf<$t>) -> XYZf<$t> {
+                XYZf {
                     x: self * rhs.x,
                     y: self * rhs.y,
                     z: self * rhs.z,
@@ -313,10 +330,10 @@ vec3_impl_rhs_mul! {
 /// Macro to implement right-side addition: T + Vec2<T>
 macro_rules! vec3_impl_rhs_add {
     ($($t:ty)*) => ($(
-        impl Add<XYZ<$t>> for $t {
-            type Output = XYZ<$t>;
-            fn add(self, rhs: XYZ<$t>) -> XYZ<$t> {
-                XYZ {
+        impl Add<XYZf<$t>> for $t {
+            type Output = XYZf<$t>;
+            fn add(self, rhs: XYZf<$t>) -> XYZf<$t> {
+                XYZf {
                     x: rhs.x + self,
                     y: rhs.y + self,
                     z: rhs.z + self,
@@ -333,10 +350,10 @@ vec3_impl_rhs_add! {
 /// Macro to implement right-side subtraction: T - Vec2<T>
 macro_rules! vec3_impl_rhs_sub {
     ($($t:ty)*) => ($(
-        impl Sub<XYZ<$t>> for $t {
-            type Output = XYZ<$t>;
-            fn sub(self, rhs: XYZ<$t>) -> XYZ<$t> {
-                XYZ {
+        impl Sub<XYZf<$t>> for $t {
+            type Output = XYZf<$t>;
+            fn sub(self, rhs: XYZf<$t>) -> XYZf<$t> {
+                XYZf {
                     x: self - rhs.x,
                     y: self - rhs.y,
                     z: self - rhs.z,
@@ -353,10 +370,10 @@ vec3_impl_rhs_sub! {
 /// Macro to implement right-side division: T / Vec2<T>
 macro_rules! vec3_impl_rhs_div {
     ($($t:ty)*) => ($(
-        impl Div<XYZ<$t>> for $t {
-            type Output = XYZ<$t>;
-            fn div(self, rhs: XYZ<$t>) -> XYZ<$t> {
-                XYZ {
+        impl Div<XYZf<$t>> for $t {
+            type Output = XYZf<$t>;
+            fn div(self, rhs: XYZf<$t>) -> XYZf<$t> {
+                XYZf {
                     x: self / rhs.x,
                     y: self / rhs.y,
                     z: self / rhs.z,

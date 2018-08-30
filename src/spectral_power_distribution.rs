@@ -1,5 +1,10 @@
-use std::iter::{Iterator, Map};
-use std::ops::{Index, IndexMut};
+//! Spectral Power Distributions
+
+use super::cmf;
+use super::xyz::XYZ;
+use std::ops::Index;
+
+pub use crate::spd_conversion::{spd_to_xyz, spd_to_xyz_with_illuminant};
 
 /// Distribution of the spectral data. Some algorithms can be optimized if it
 /// is known that the samples are evenly distributed
@@ -32,13 +37,14 @@ fn calculate_distribution(samples: &[(f32, f32)]) -> Distribution {
     }
 }
 /// A Spectral Power Distribution. An SPD is a vector of (wavelength, value)
-/// pairs.
+/// pairs. Wavelengths are assumed to be in nanometers.
 pub struct SPD {
     samples: Vec<(f32, f32)>,
     distribution: Distribution,
 }
 
 impl SPD {
+    /// Create a new SPD by copying the given slice of samples
     pub fn new(samples: &[(f32, f32)]) -> SPD {
         let samples = samples.to_vec();
         let distribution = calculate_distribution(&samples);
@@ -48,6 +54,7 @@ impl SPD {
         }
     }
 
+    /// Create a new SPD by consuming the given Vec of samples.
     pub fn consume(samples: Vec<(f32, f32)>) -> SPD {
         let distribution = calculate_distribution(&samples);
         SPD {
@@ -56,6 +63,7 @@ impl SPD {
         }
     }
 
+    /// Create a new SPD by copying the given wavelength and value slices
     pub fn from_wavelength_and_value(wavelength: &[f32], value: &[f32]) -> SPD {
         let len = std::cmp::min(wavelength.len(), value.len());
         let mut samples = Vec::<(f32, f32)>::with_capacity(len);
@@ -88,22 +96,27 @@ impl SPD {
         }
     }
 
+    /// The smallest wavelength of the range covered by this SPD
     pub fn start(&self) -> f32 {
         self.samples.first().unwrap().0
     }
 
+    /// The largest wavelength of the range covered by this SPD
     pub fn end(&self) -> f32 {
         self.samples.last().unwrap().0
     }
 
+    /// The size of the range covered by this SPD
     pub fn range(&self) -> f32 {
         self.end() - self.start()
     }
 
+    /// The number of samples in this SPD
     pub fn num_samples(&self) -> usize {
         self.samples.len()
     }
 
+    /// The distribution of this SPD
     pub fn distribution(&self) -> Distribution {
         self.distribution
     }
@@ -129,8 +142,21 @@ impl SPD {
         }
     }
 
+    /// Get a reference to the vector of samples contained in this SPD
     pub fn samples(&self) -> &Vec<(f32, f32)> {
         &self.samples
+    }
+
+    /// Convert this SPD to a tristimulus XYZ value using the CIE 1931 2-degree
+    /// color matching functions. The SPD is assumed to be emissive.
+    pub fn to_xyz(&self) -> XYZ {
+        spd_to_xyz(self, &cmf::CIE_1931_2_degree)
+    }
+
+    /// Convert this SPD to a tristimulus XYZ value using the CIE 1931 2-degree
+    /// color matching functions and the given illuminant SPD. 
+    pub fn to_xyz_with_illuminant(&self, illum: &SPD) -> XYZ {
+        spd_to_xyz_with_illuminant(self, &cmf::CIE_1931_2_degree, illum)
     }
 }
 
@@ -140,9 +166,3 @@ impl Index<usize> for SPD {
         &self.samples[index]
     }
 }
-
-// impl IndexMut<usize> for SPD {
-//     fn index_mut(&mut self, index: usize) -> &mut (f32, f32) {
-//         &mut self.samples[index]
-//     }
-// }

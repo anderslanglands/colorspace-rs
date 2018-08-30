@@ -1,9 +1,30 @@
+//! Types and functions for working with color. This is the crate to use if you
+//! care about converting spectral color data to and from various RGB color
+//! spaces, and converting RGB colors between those spaces.
+//!
+//! # Examples
+//! ```
+//! // Definition of the sRGB color space
+//! use spectrum::color_space_rgb::sRGB;
+//! // The prelude brings in common types
+//! use spectrum::prelude::*;
+//! // Convert the spectral data for a measured MacBeth chart swatch to XYZ 
+//! // using the CIE 1931 2-degree CMFs and a D65 illuminant
+//! let xyz = babel_average::spd["dark_skin"]
+//!     .to_xyz_with_illuminant(&illuminant::D65);
+//! // Convert the XYZ value to a display-referred, 8-bit RGB value
+//! let rgb: RGBu8 = sRGB.xyz_to_rgb_with_oetf(xyz).into();
+//! assert_eq!(rgb, rgbu8(115, 82, 68));
+//! ```
+
+
 pub mod chromaticity;
+pub mod cmf;
 pub mod color_checker;
-pub mod color_matching_function;
 pub mod color_space_rgb;
 pub mod illuminant;
 pub mod math;
+pub mod prelude;
 pub mod rgb;
 pub mod spd_conversion;
 pub mod spectral_power_distribution;
@@ -35,21 +56,43 @@ mod tests {
 
     #[test]
     fn spectral_to_rgb_conversion() {
-        use crate::rgb::{RGBu8, RGBu16};
-        let xyz = crate::spd_conversion::spd_to_xyz_with_illuminant(
-            &crate::color_checker::babel_average::spectrum::spd_dark_skin,
-            &crate::color_matching_function::cmf_CIE_1931_2_degree,
-            &crate::illuminant::D65,
-        );
+        use crate::prelude::*;
+        let xyz = babel_average::spd["dark_skin"]
+            .to_xyz_with_illuminant(&illuminant::D65);
 
         eprintln!("xyz: {}", xyz);
 
-        let rgb = crate::color_space_rgb::ITUR_BT709.xyz_to_rgb(xyz);
-        let rgb = crate::color_space_rgb::oetf::srgb_RGBf32(rgb);
+        let ones_xyz =
+            illuminant::Ones.to_xyz_with_illuminant(&illuminant::D65);
+        let ones_rgb = color_space_rgb::ITUR_BT709.xyz_to_rgb(ones_xyz);
+        eprintln!("ones_rgb: {}", ones_rgb);
+
+        let rgb = color_space_rgb::ITUR_BT709.xyz_to_rgb(xyz);
+        eprintln!("rgbf32: {}", rgb);
+        let rgb = oetf::srgb(rgb);
+        eprintln!("rgbf32 srgb: {}", rgb);
         let rgbu8 = RGBu8::from(rgb);
         let rgbu16 = RGBu16::from(rgb);
 
+        assert_eq!(rgbu8, babel_average::srgb_u8::dark_skin);
+
         eprintln!("rgbu8: {}", rgbu8);
         eprintln!("rgbu16: {}", rgbu16);
+
+        let d65_xyz = illuminant::D65.to_xyz().normalized();
+        eprintln!("D65 xyz: {}", d65_xyz);
+
+        let d65_xyz_from_xy = XYZ::from(Chromaticity {
+            x: 0.3127,
+            y: 0.3290,
+        });
+        eprintln!("D65 xy->xyz: {}", d65_xyz_from_xy);
+
+        for (name, ref spd) in &*babel_average::spd {
+            let xyz = spd.to_xyz_with_illuminant(&illuminant::D65);
+            let rgb = color_space_rgb::ITUR_BT709.xyz_to_rgb(xyz);
+            let rgb = RGBu8::from(oetf::srgb(rgb));
+            println!("{}: {}", name, rgb);
+        }
     }
 }
