@@ -2,7 +2,7 @@
 use super::chromaticity::Chromaticity;
 use super::rgb::{rgbf32, RGBf32};
 use super::xyz::XYZ;
-use imath::matrix::M33f;
+use super::math::Matrix33;
 use lazy_static::lazy_static;
 
 pub mod oetf {
@@ -160,14 +160,14 @@ pub type TransferFunction = Box<Fn(RGBf32) -> RGBf32 + Sync>;
 /// Defines a tristimulus RGB color space as a collection of primaries, a
 /// whitepoint and OETF.
 pub struct ColorSpaceRGB {
-    xf_xyz_to_rgb: M33f,
-    xf_rgb_to_xyz: M33f,
-    red: Chromaticity,
-    green: Chromaticity,
-    blue: Chromaticity,
-    white: Chromaticity,
-    oetf: TransferFunction,
-    eotf: TransferFunction,
+    pub xf_xyz_to_rgb: Matrix33,
+    pub xf_rgb_to_xyz: Matrix33,
+    pub red: Chromaticity,
+    pub green: Chromaticity,
+    pub blue: Chromaticity,
+    pub white: Chromaticity,
+    pub oetf: TransferFunction,
+    pub eotf: TransferFunction,
 }
 
 impl ColorSpaceRGB {
@@ -195,6 +195,28 @@ impl ColorSpaceRGB {
         }
     }
 
+    pub fn new_with_specified_matrices(
+        red: Chromaticity,
+        green: Chromaticity,
+        blue: Chromaticity,
+        white: Chromaticity,
+        xf_xyz_to_rgb: Matrix33,
+        xf_rgb_to_xyz: Matrix33,
+        oetf: TransferFunction,
+        eotf: TransferFunction,
+    ) -> ColorSpaceRGB {
+        ColorSpaceRGB {
+            xf_xyz_to_rgb,
+            xf_rgb_to_xyz,
+            red,
+            green,
+            blue,
+            white,
+            oetf,
+            eotf,
+        }
+    }
+
     /// Transform the given XYZ color to scene-referred RGB in this color space
     pub fn xyz_to_rgb(&self, xyz: XYZ) -> RGBf32 {
         let m = &self.xf_xyz_to_rgb;
@@ -205,7 +227,8 @@ impl ColorSpaceRGB {
         )
     }
 
-    /// Transform the given XYZ color to display-referred RGB in this color space
+    /// Transform the given XYZ color to display-referred RGB in this color
+    /// space
     pub fn xyz_to_rgb_with_oetf(&self, xyz: XYZ) -> RGBf32 {
         let m = &self.xf_xyz_to_rgb;
         (self.oetf)(rgbf32(
@@ -242,7 +265,7 @@ fn build_xyz_to_rgb_matrix(
     green: &Chromaticity,
     blue: &Chromaticity,
     white: &Chromaticity,
-) -> M33f {
+) -> Matrix33 {
     let xr = red.x;
     let yr = red.y;
     let zr = 1.0 - (xr + yr);
@@ -275,25 +298,25 @@ fn build_xyz_to_rgb_matrix(
     let bw = ((bx * xw) + (by * yw) + (bz * zw)) / yw;
 
     // xyz -> rgb matrix, correctly scaled to white
-    let mut xf_xyz_to_rgb = M33f::make_identity();
-    xf_xyz_to_rgb[0][0] = rx / rw;
-    xf_xyz_to_rgb[0][1] = ry / rw;
-    xf_xyz_to_rgb[0][2] = rz / rw;
-    xf_xyz_to_rgb[1][0] = gx / gw;
-    xf_xyz_to_rgb[1][1] = gy / gw;
-    xf_xyz_to_rgb[1][2] = gz / gw;
-    xf_xyz_to_rgb[2][0] = bx / bw;
-    xf_xyz_to_rgb[2][1] = by / bw;
-    xf_xyz_to_rgb[2][2] = bz / bw;
-
-    xf_xyz_to_rgb
+    Matrix33::new([
+        rx / rw,
+        ry / rw,
+        rz / rw,
+        gx / gw,
+        gy / gw,
+        gz / gw,
+        bx / bw,
+        by / bw,
+        bz / bw,
+    ])
 }
 
 lazy_static! {
+
     /// sRGB
     /// Data taken https://en.wikipedia.org/wiki/SRGB
     pub static ref sRGB: ColorSpaceRGB = {
-        ColorSpaceRGB::new(
+        ColorSpaceRGB::new_with_specified_matrices(
             Chromaticity { x: 0.64, y: 0.33 },
             Chromaticity { x: 0.30, y: 0.60 },
             Chromaticity { x: 0.15, y: 0.06 },
@@ -301,6 +324,12 @@ lazy_static! {
                 x: 0.3127,
                 y: 0.3290,
             },
+            Matrix33::new([3.2406, -1.5372, -0.4986,
+            -0.9689, 1.8758, 0.0415,
+            0.0557, -0.2040, 1.0570]),
+            Matrix33::new([0.4124, 0.3576, 0.1805,
+            0.2126, 0.7152, 0.0722,
+            0.0193, 0.1192, 0.9505]),
             Box::new(oetf::srgb),
             Box::new(eotf::srgb),
         )
@@ -308,7 +337,7 @@ lazy_static! {
     /// ITU-R Rec. BT.709
     /// Data taken from https://en.wikipedia.org/wiki/Rec._709
     pub static ref ITUR_BT709: ColorSpaceRGB = {
-        ColorSpaceRGB::new(
+        ColorSpaceRGB::new_with_specified_matrices(
             Chromaticity { x: 0.64, y: 0.33 },
             Chromaticity { x: 0.30, y: 0.60 },
             Chromaticity { x: 0.15, y: 0.06 },
@@ -316,6 +345,12 @@ lazy_static! {
                 x: 0.3127,
                 y: 0.3290,
             },
+            Matrix33::new([3.2406, -1.5372, -0.4986,
+            -0.9689, 1.8758, 0.0415,
+            0.0557, -0.2040, 1.0570]),
+            Matrix33::new([0.4124, 0.3576, 0.1805,
+            0.2126, 0.7152, 0.0722,
+            0.0193, 0.1192, 0.9505]),
             Box::new(oetf::bt709),
             Box::new(eotf::bt709),
         )

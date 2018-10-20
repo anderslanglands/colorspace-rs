@@ -8,8 +8,8 @@ pub mod babel_average {
         /// http://www.babelcolor.com/colorchecker.htm
         /// # Examples
         /// ```
-        /// use spectrum::prelude::*;
-        /// use spectrum::color_space_rgb::sRGB;
+        /// use color_science::prelude::*;
+        /// use color_science::color_space_rgb::sRGB;
         /// let xyz = babel_average::spd["dark_skin"].to_xyz_with_illuminant(&illuminant::D65);
         /// let rgb: RGBu8 = sRGB.xyz_to_rgb_with_oetf(xyz).into();
         /// assert_eq!(rgb, rgbu8(115, 82, 68));
@@ -475,14 +475,37 @@ pub mod babel_average {
 
             hm
         };
-    }
 
-    pub mod srgb_u8 {
-        use crate::rgb::RGBu8;
-        pub const dark_skin: RGBu8 = RGBu8 {
-            r: 115,
-            g: 82,
-            b: 68,
+        pub static ref sRGB_u8: HashMap<&'static str, crate::rgb::RGBu8> = {
+            use crate::rgb::rgbu8;
+            let mut hm = HashMap::new();
+
+            hm.insert("dark_skin", rgbu8(115, 82, 68));
+            hm.insert("light_skin", rgbu8(195, 149, 128));
+            hm.insert("blue_sky", rgbu8(93, 123, 157));
+            hm.insert("foliage", rgbu8(91, 108, 65));
+            hm.insert("blue_flower", rgbu8(130, 129, 175));
+            hm.insert("bluish_green", rgbu8(98, 191, 170));
+            hm.insert("orange", rgbu8(220, 123, 46));
+            hm.insert("purplish_blue", rgbu8(72, 92, 168));
+            hm.insert("moderate_red", rgbu8(194, 84, 97));
+            hm.insert("purple", rgbu8(91, 59, 104));
+            hm.insert("yellow_green", rgbu8(161, 189, 62));
+            hm.insert("orange_yellow", rgbu8(229, 161, 40));
+            hm.insert("blue", rgbu8(42, 63, 147));
+            hm.insert("green", rgbu8(72, 149, 72));
+            hm.insert("red", rgbu8(175, 50, 56));
+            hm.insert("yellow", rgbu8(238, 200, 22));
+            hm.insert("magenta", rgbu8(188, 84, 150));
+            hm.insert("cyan", rgbu8(0, 137, 166));
+            hm.insert("white_95", rgbu8(245, 245, 240));
+            hm.insert("neutral_80", rgbu8(201, 202, 201));
+            hm.insert("neutral_65", rgbu8(161, 162, 161));
+            hm.insert("neutral_50", rgbu8(120, 121, 121));
+            hm.insert("neutral_35", rgbu8(83, 85, 85));
+            hm.insert("black_20", rgbu8(50,50, 51));
+
+            hm
         };
     }
 }

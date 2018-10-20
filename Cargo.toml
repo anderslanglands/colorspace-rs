@@ -2,12 +2,14 @@ cargo-features=["edition"]
 
 [package]
 edition="2018"
-name = "spectrum"
+name = "color-science"
 version = "0.1.0"
 authors = ["Anders Langlands <anderslanglands@gmail.com>"]
 
+[features]
+f16 = ["half"]
+
 [dependencies]
-num = "0.2"
+num-traits = "0.2"
 lazy_static = "1.1"
-imath = { path = "../imath-rs" }
-half = "1.1"
+half = {version="0.1", optional = true}

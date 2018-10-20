@@ -5,10 +5,10 @@
 //! # Examples
 //! ```
 //! // Definition of the sRGB color space
-//! use spectrum::color_space_rgb::sRGB;
+//! use color_science::color_space_rgb::sRGB;
 //! // The prelude brings in common types
-//! use spectrum::prelude::*;
-//! // Convert the spectral data for a measured MacBeth chart swatch to XYZ 
+//! use color_science::prelude::*;
+//! // Convert the spectral data for a measured MacBeth chart swatch to XYZ
 //! // using the CIE 1931 2-degree CMFs and a D65 illuminant
 //! let xyz = babel_average::spd["dark_skin"]
 //!     .to_xyz_with_illuminant(&illuminant::D65);
@@ -17,7 +17,7 @@
 //! assert_eq!(rgb, rgbu8(115, 82, 68));
 //! ```
 
-
+pub mod chromatic_adaptation;
 pub mod chromaticity;
 pub mod cmf;
 pub mod color_checker;
@@ -57,6 +57,8 @@ mod tests {
     #[test]
     fn spectral_to_rgb_conversion() {
         use crate::prelude::*;
+
+        /*
         let xyz = babel_average::spd["dark_skin"]
             .to_xyz_with_illuminant(&illuminant::D65);
 
@@ -79,6 +81,7 @@ mod tests {
         eprintln!("rgbu8: {}", rgbu8);
         eprintln!("rgbu16: {}", rgbu16);
 
+        */
         let d65_xyz = illuminant::D65.to_xyz().normalized();
         eprintln!("D65 xyz: {}", d65_xyz);
 
@@ -87,12 +90,38 @@ mod tests {
             y: 0.3290,
         });
         eprintln!("D65 xy->xyz: {}", d65_xyz_from_xy);
+        eprintln!("ACEScg matrix: {:?}", color_space_rgb::ACEScg.xf_xyz_to_rgb);
+        eprintln!(
+            "sRGB matrix: {:?}",
+            color_space_rgb::ITUR_BT709.xf_xyz_to_rgb
+        );
+
+        let cat_srgb_to_acescg =
+            create_cat_bradford(
+                XYZ::from_chromaticity(color_space_rgb::ITUR_BT709.white, 1.0),
+                XYZ::from_chromaticity(color_space_rgb::ACEScg.white, 1.0),
+            );
 
         for (name, ref spd) in &*babel_average::spd {
             let xyz = spd.to_xyz_with_illuminant(&illuminant::D65);
             let rgb = color_space_rgb::ITUR_BT709.xyz_to_rgb(xyz);
-            let rgb = RGBu8::from(oetf::srgb(rgb));
-            println!("{}: {}", name, rgb);
+            let srgb = RGBu8::from(oetf::srgb(rgb));
+            assert_eq!(srgb, babel_average::sRGB_u8[name]);
+
+            eprintln!("\n{} ----------", name);
+
+            eprintln!("XYZ       {}", xyz);
+            eprintln!("sRGB      {}", rgb);
+
+            let xyz_acescg = cat_srgb_to_acescg * xyz;
+            let rgb_acescg = color_space_rgb::ACEScg.xyz_to_rgb(xyz_acescg);
+            eprintln!("ACEScg    {}", rgb_acescg);
+
+            let rgb_p3d65 = color_space_rgb::P3_D65.xyz_to_rgb(xyz);
+            eprintln!("P3 D65    {}", rgb_p3d65);
+
+            let rgb_alexawide = color_space_rgb::AlexaWide.xyz_to_rgb(xyz);
+            eprintln!("AlexaWide {}", rgb_alexawide);
         }
     }
 }

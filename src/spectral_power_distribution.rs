@@ -3,6 +3,7 @@
 use super::cmf;
 use super::xyz::XYZ;
 use std::ops::Index;
+use super::math::clamp;
 
 pub use crate::spd_conversion::{spd_to_xyz, spd_to_xyz_with_illuminant};
 
@@ -124,7 +125,6 @@ impl SPD {
     /// Interpolates the value for `lambda` from the SPD. If `lambda` is
     /// outside of the range of the SPD, it is clamped to lie within the range.
     pub fn value_at(&self, lambda: f32) -> f32 {
-        use num::clamp;
         let t = (lambda - self.start()) / self.range();
         let i0 = (t * self.num_samples() as f32) as i32;
         let i1 = i0 + 1;

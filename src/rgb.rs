@@ -5,6 +5,8 @@ use std::fmt;
 use std::ops::{Index, IndexMut};
 use std::convert::From;
 use super::math::*;
+
+#[cfg(feature="f16")]
 use half::f16;
 
 /// Floating-point RGB type
@@ -373,6 +375,7 @@ pub struct RGBu16 {
     pub b: u16,
 }
 
+#[cfg(feature="f16")]
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Default)]
 pub struct RGBf16 {
@@ -395,6 +398,7 @@ pub fn rgbu16(r: u16, g: u16, b: u16) -> RGBu16 {
     }
 }
 
+#[cfg(feature="f16")]
 #[inline]
 pub fn rgbf16(r: f16, g: f16, b: f16) -> RGBf16 {
     RGBf16 {
@@ -456,6 +460,7 @@ impl fmt::Display for RGBu16
     }
 }
 
+#[cfg(feature="f16")]
 impl fmt::Display for RGBf16
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
