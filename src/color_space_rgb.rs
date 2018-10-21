@@ -372,7 +372,7 @@ lazy_static! {
     };
     /// DCI-P3
     /// Data taken from https://en.wikipedia.org/wiki/DCI-P3
-    pub static ref P3_DCI: ColorSpaceRGB = {
+    pub static ref DCI_P3: ColorSpaceRGB = {
         ColorSpaceRGB::new(
             Chromaticity { x: 0.680, y: 0.320 },
             Chromaticity { x: 0.265, y: 0.690 },
@@ -387,7 +387,7 @@ lazy_static! {
     };
     /// P3 D65
     /// Data taken from https://en.wikipedia.org/wiki/DCI-P3
-    pub static ref P3_D65: ColorSpaceRGB = {
+    pub static ref DCI_P3_D65: ColorSpaceRGB = {
         ColorSpaceRGB::new(
             Chromaticity { x: 0.680, y: 0.320 },
             Chromaticity { x: 0.265, y: 0.690 },

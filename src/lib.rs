@@ -104,7 +104,7 @@ mod tests {
 
         let xf_xyz_to_p3 = xyz_to_rgb_matrix(
             color_space_rgb::ITUR_BT709.white,
-            &color_space_rgb::P3_DCI,
+            &color_space_rgb::DCI_P3,
         );
 
         let xf_xyz_to_alexawide = xyz_to_rgb_matrix(
