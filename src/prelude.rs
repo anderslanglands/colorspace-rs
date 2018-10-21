@@ -9,3 +9,4 @@ pub use crate::rgb::{RGBf32, RGBu16, RGBu8, rgbf32, rgbu8, rgbu16};
 pub use crate::rgb::RGBf16;
 pub use crate::xyz::XYZ;
 pub use crate::transform::*;
+pub use crate::lab::*;

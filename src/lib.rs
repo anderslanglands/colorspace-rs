@@ -31,6 +31,7 @@ pub mod spectral_power_distribution;
 mod traits;
 pub mod transform;
 pub mod xyz;
+pub mod lab;
 
 #[cfg(test)]
 mod tests {

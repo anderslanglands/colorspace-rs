@@ -334,6 +334,7 @@ lazy_static! {
             Box::new(eotf::srgb),
         )
     };
+
     /// ITU-R Rec. BT.709
     /// Data taken from https://en.wikipedia.org/wiki/Rec._709
     pub static ref ITUR_BT709: ColorSpaceRGB = {
@@ -355,6 +356,7 @@ lazy_static! {
             Box::new(eotf::bt709),
         )
     };
+
     /// ITU-R Rec. BT.2020
     /// Data taken from https://en.wikipedia.org/wiki/Rec._2020
     pub static ref ITUR_BT2020: ColorSpaceRGB = {
@@ -370,6 +372,7 @@ lazy_static! {
             Box::new(eotf::bt2020),
         )
     };
+
     /// DCI-P3
     /// Data taken from https://en.wikipedia.org/wiki/DCI-P3
     pub static ref DCI_P3: ColorSpaceRGB = {
@@ -385,6 +388,7 @@ lazy_static! {
             Box::new(|c: RGBf32| c.powf(2.6)),
         )
     };
+
     /// P3 D65
     /// Data taken from https://en.wikipedia.org/wiki/DCI-P3
     pub static ref DCI_P3_D65: ColorSpaceRGB = {
@@ -400,6 +404,7 @@ lazy_static! {
             Box::new(|c: RGBf32| c.powf(2.6)),
         )
     };
+
     /// ACES archival color space. AP0 primaries.
     /// Data taken from https://en.wikipedia.org/wiki/Academy_Color_Encoding_System
     pub static ref ACES2065_1: ColorSpaceRGB = {
@@ -415,6 +420,7 @@ lazy_static! {
             Box::new(eotf::linear),
         )
     };
+
     /// ACEScg color space. AP1 primaries.
     /// Data taken from https://en.wikipedia.org/wiki/Academy_Color_Encoding_System
     pub static ref ACEScg: ColorSpaceRGB = {
@@ -430,19 +436,7 @@ lazy_static! {
             Box::new(eotf::linear),
         )
     };
-    // /// Kodak ProPhoto RGB
-    // /// Data taken from https://en.wikipedia.org/wiki/ProPhoto_RGB_color_space
-    // pub static ref ProPhoto: ColorSpaceRGB = {
-    //     ColorSpaceRGB::new(
-    //         Chromaticity { x: 0.7347, y: 0.2653 },
-    //         Chromaticity { x: 0.1596, y: 0.8404 },
-    //         Chromaticity { x: 0.0366, y: 0.0001 },
-    //         Chromaticity {
-    //             x: 0.3457,
-    //             y: 0.3585,
-    //         },
-    //     )
-    // };
+
     /// Adobe RGB (1998)
     /// Data taken from https://en.wikipedia.org/wiki/Adobe_RGB_color_space
     pub static ref Adobe: ColorSpaceRGB = {
@@ -458,6 +452,7 @@ lazy_static! {
             Box::new(|c: RGBf32| c.powf(2.19921875)),
         )
     };
+
     /// ARRI Alexa Wide Gamut.
     /// Data taken from "Alexa LogC Curve in VFX"
     /// http://www.arri.com/?eID=registration&file_uid=18358

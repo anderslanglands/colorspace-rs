@@ -32,6 +32,26 @@ pub fn equal_with_rel_error(x: f32, y: f32, e: f32) -> bool
     a <= e * b
 }
 
+#[inline(always)]
+pub fn sqrt(x: f32) -> f32 {
+    x.sqrt()
+}
+
+#[inline(always)]
+pub fn sqr(x: f32) -> f32 {
+    x*x
+}
+
+#[inline(always)]
+pub fn pow(x: f32, y: f32) -> f32 {
+    x.powf(y)
+}
+
+#[inline(always)]
+pub fn powi(x: f32, i: i32) -> f32 {
+    x.powi(i)
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 /// 3x3 Matrix type 
