@@ -37,6 +37,7 @@ fn calculate_distribution(samples: &[(f32, f32)]) -> Distribution {
         Distribution::Varying
     }
 }
+
 /// A Spectral Power Distribution. An SPD is a vector of (wavelength, value)
 /// pairs. Wavelengths are assumed to be in nanometers.
 pub struct SPD {
@@ -154,7 +155,7 @@ impl SPD {
     }
 
     /// Convert this SPD to a tristimulus XYZ value using the CIE 1931 2-degree
-    /// color matching functions and the given illuminant SPD. 
+    /// color matching functions and the given reference illuminant SPD. 
     pub fn to_xyz_with_illuminant(&self, illum: &SPD) -> XYZ {
         spd_to_xyz_with_illuminant(self, &cmf::CIE_1931_2_degree, illum)
     }

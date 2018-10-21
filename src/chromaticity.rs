@@ -10,10 +10,6 @@ pub struct Chromaticity {
 }
 
 impl Chromaticity {
-    fn new(x: f32, y: f32) -> Chromaticity {
-        Chromaticity { x, y }
-    }
-
     /// Convert the given XYZ tristimulus value to a (normalized) chromaticity
     /// value
     pub fn from_xyz(c: XYZ) -> Chromaticity {

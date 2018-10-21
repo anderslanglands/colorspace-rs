@@ -1,9 +1,10 @@
 //! Explicit conversion to and from SPDs
+#![allow(non_snake_case)]
 
-use super::spectral_power_distribution::SPD;
-use super::xyz::XYZ;
 use super::cmf::CMF;
+use super::spectral_power_distribution::SPD;
 use super::traits::*;
+use super::xyz::XYZ;
 
 pub fn spd_to_xyz(spd: &SPD, cmf: &CMF) -> XYZ {
     let lambda_start = if spd.start() > cmf.x_bar.start() {
