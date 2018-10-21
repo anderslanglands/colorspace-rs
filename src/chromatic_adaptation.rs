@@ -1,7 +1,12 @@
 use super::math::*;
 use super::xyz::*;
+use super::chromaticity::*;
 
-pub fn create_cat_bradford(wp_src: XYZ, wp_dst: XYZ) -> Matrix33 {
+pub fn bradford(wp_src: Chromaticity, wp_dst: Chromaticity) -> Matrix33 {
+    if wp_src == wp_dst {
+        return Matrix33::make_identity();
+    }
+
     #[rustfmt::skip]
     let M_A = Matrix33::new([
         0.8951000, 0.2664000, -0.1614000, 
@@ -15,8 +20,8 @@ pub fn create_cat_bradford(wp_src: XYZ, wp_dst: XYZ) -> Matrix33 {
         -0.0085287, 0.0400428, 0.9684867,
     ]);
 
-    let wp_src_A = M_A * wp_src;
-    let wp_dst_A = M_A * wp_dst;
+    let wp_src_A = M_A * XYZ::from_chromaticity(wp_src, 1.0);
+    let wp_dst_A = M_A * XYZ::from_chromaticity(wp_dst, 1.0);
 
     let M_wp = Matrix33::new([
         wp_dst_A.x / wp_src_A.x, 0.0, 0.0,

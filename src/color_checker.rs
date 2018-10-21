@@ -8,8 +8,8 @@ pub mod babel_average {
         /// http://www.babelcolor.com/colorchecker.htm
         /// # Examples
         /// ```
-        /// use color_science::prelude::*;
-        /// use color_science::color_space_rgb::sRGB;
+        /// use color_space::prelude::*;
+        /// use color_space::color_space_rgb::sRGB;
         /// let xyz = babel_average::spd["dark_skin"].to_xyz_with_illuminant(&illuminant::D65);
         /// let rgb: RGBu8 = sRGB.xyz_to_rgb_with_oetf(xyz).into();
         /// assert_eq!(rgb, rgbu8(115, 82, 68));

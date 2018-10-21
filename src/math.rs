@@ -1,6 +1,7 @@
 use super::traits::*;
 use std::ops::{Index, IndexMut};
 use crate::xyz::XYZ;
+use crate::rgb::RGBf32;
 
 pub fn clamp<T>(x: T, a: T, b: T) -> T where T: PartialOrd {
     if x < a {
@@ -409,6 +410,19 @@ impl Mul<XYZ> for Matrix33
             self.x[0] * xyz.x + self.x[1] * xyz.y + self.x[2] * xyz.z,
             self.x[3] * xyz.x + self.x[4] * xyz.y + self.x[5] * xyz.z,
             self.x[6] * xyz.x + self.x[7] * xyz.y + self.x[8] * xyz.z,
+        )
+    }
+}
+
+impl Mul<RGBf32> for Matrix33
+{
+    type Output = RGBf32;
+
+    fn mul(self, rgb: RGBf32) -> RGBf32 {
+        RGBf32::new(
+            self.x[0] * rgb.r + self.x[1] * rgb.g + self.x[2] * rgb.b,
+            self.x[3] * rgb.r + self.x[4] * rgb.g + self.x[5] * rgb.b,
+            self.x[6] * rgb.r + self.x[7] * rgb.g + self.x[8] * rgb.b,
         )
     }
 }

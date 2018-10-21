@@ -3,7 +3,7 @@ use super::xyz::XYZ;
 use std::convert::From;
 
 /// Defines a pair of `xy` chromaticity coordinates
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub struct Chromaticity {
     pub x: f32,
     pub y: f32,

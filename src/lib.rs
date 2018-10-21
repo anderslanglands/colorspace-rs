@@ -5,9 +5,9 @@
 //! # Examples
 //! ```
 //! // Definition of the sRGB color space
-//! use color_science::color_space_rgb::sRGB;
+//! use color_space::color_space_rgb::sRGB;
 //! // The prelude brings in common types
-//! use color_science::prelude::*;
+//! use color_space::prelude::*;
 //! // Convert the spectral data for a measured MacBeth chart swatch to XYZ
 //! // using the CIE 1931 2-degree CMFs and a D65 illuminant
 //! let xyz = babel_average::spd["dark_skin"]
@@ -29,6 +29,7 @@ pub mod rgb;
 pub mod spd_conversion;
 pub mod spectral_power_distribution;
 mod traits;
+pub mod transform;
 pub mod xyz;
 
 #[cfg(test)]
@@ -96,11 +97,25 @@ mod tests {
             color_space_rgb::ITUR_BT709.xf_xyz_to_rgb
         );
 
-        let cat_srgb_to_acescg =
-            create_cat_bradford(
-                XYZ::from_chromaticity(color_space_rgb::ITUR_BT709.white, 1.0),
-                XYZ::from_chromaticity(color_space_rgb::ACEScg.white, 1.0),
-            );
+        let xf_xyz_to_acescg = xyz_to_rgb_matrix(
+            color_space_rgb::ITUR_BT709.white,
+            &color_space_rgb::ACEScg,
+        );
+
+        let xf_xyz_to_p3 = xyz_to_rgb_matrix(
+            color_space_rgb::ITUR_BT709.white,
+            &color_space_rgb::P3_DCI,
+        );
+
+        let xf_xyz_to_alexawide = xyz_to_rgb_matrix(
+            color_space_rgb::ITUR_BT709.white,
+            &color_space_rgb::AlexaWide,
+        );
+
+        let xf_r709_to_acescg = rgb_to_rgb_matrix(
+            &color_space_rgb::ITUR_BT709,
+            &color_space_rgb::ACEScg,
+        );
 
         for (name, ref spd) in &*babel_average::spd {
             let xyz = spd.to_xyz_with_illuminant(&illuminant::D65);
@@ -113,14 +128,15 @@ mod tests {
             eprintln!("XYZ       {}", xyz);
             eprintln!("sRGB      {}", rgb);
 
-            let xyz_acescg = cat_srgb_to_acescg * xyz;
-            let rgb_acescg = color_space_rgb::ACEScg.xyz_to_rgb(xyz_acescg);
+            let rgb_acescg = xyz_to_rgb(&xf_xyz_to_acescg, xyz);
             eprintln!("ACEScg    {}", rgb_acescg);
+            let rgb_acescg = xf_r709_to_acescg * rgb;
+            eprintln!("ACEScg (from709) {}", rgb_acescg);
 
-            let rgb_p3d65 = color_space_rgb::P3_D65.xyz_to_rgb(xyz);
-            eprintln!("P3 D65    {}", rgb_p3d65);
+            let rgb_p3 = xyz_to_rgb(&xf_xyz_to_p3, xyz);
+            eprintln!("P3        {}", rgb_p3);
 
-            let rgb_alexawide = color_space_rgb::AlexaWide.xyz_to_rgb(xyz);
+            let rgb_alexawide = xyz_to_rgb(&xf_xyz_to_alexawide, xyz);
             eprintln!("AlexaWide {}", rgb_alexawide);
         }
     }

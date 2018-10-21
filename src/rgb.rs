@@ -5,6 +5,7 @@ use std::fmt;
 use std::ops::{Index, IndexMut};
 use std::convert::From;
 use super::math::*;
+use super::xyz::*;
 
 #[cfg(feature="f16")]
 use half::f16;
