@@ -14,7 +14,7 @@
  
  ## Examples
  ### Spectral to 8-bit, gamma encoded sRGB conversion
- ```
+ ```rust
  // Definition of the sRGB color space
  use colorspace::color_space_rgb::sRGB;
  // The prelude brings in common types
@@ -42,7 +42,7 @@
  Copyright (c) 2013-2018, Colour Developers
  
  Most of the conversion algorithms are based on those published at 
- Bruce Lindbloom's excellent site: <http://www.brucelindbloom.com>
+ Bruce Lindbloom's site: <http://www.brucelindbloom.com>
  Copyright © 2001 - 2018 Bruce Justin Lindbloom.
  
  BabelColor color-checker data is copyright © 2004‐2012 Danny Pascale (www.babelcolor.com); used with permission.
