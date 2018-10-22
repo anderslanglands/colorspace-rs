@@ -1,6 +1,6 @@
 //! XYZ color type
 
-use super::chromaticity::Chromaticity;
+use super::chromaticity::xyY;
 use super::math::*;
 use super::traits::*;
 use std::convert::From;
@@ -46,20 +46,20 @@ impl XYZ {
 }
 
 impl XYZ {
-    /// Creates a new XYZ from the given `Chromaticity` coordinates
+    /// Creates a new XYZ from the given `xyY` coordinates
     #[allow(non_snake_case)]
-    pub fn from_chromaticity(c: Chromaticity, Y: f32) -> XYZ {
+    pub fn from_chromaticity(c: xyY) -> XYZ {
         XYZ {
-            x: c.x * Y / c.y,
-            y: Y,
-            z: (1.0 - c.x - c.y) * Y / c.y,
+            x: c.x * c.Y / c.y,
+            y: c.Y,
+            z: (1.0 - c.x - c.y) * c.Y / c.y,
         }
     }
 }
 
-impl From<Chromaticity> for XYZ {
-    fn from(c: Chromaticity) -> XYZ {
-        XYZ::from_chromaticity(c, 1.0)
+impl From<xyY> for XYZ {
+    fn from(c: xyY) -> XYZ {
+        XYZ::from_chromaticity(c)
     }
 }
 

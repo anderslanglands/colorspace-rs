@@ -2,7 +2,7 @@ cargo-features=["edition"]
 
 [package]
 edition="2018"
-name = "color-space"
+name = "colorspace"
 version = "0.1.0"
 authors = ["Anders Langlands <anderslanglands@gmail.com>"]
 

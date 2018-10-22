@@ -1,21 +1,52 @@
-//! Types and functions for working with color. This is the crate to use if you
-//! care about converting spectral color data to and from various RGB color
-//! spaces, and converting RGB colors between those spaces.
-//!
+//! A crate for colorimetry in Rust.
+//! This crate contains types and functions for working with color. The intended
+//! use is to support rendering applications (I use it to manage color in a spectral pathtracer), but if you want to be able to 
+//! convert between spectral, XYZ, L'a'b' and RGB spaces of various flavors such as
+//! sRGB, ACES, DCI P3 and ALEXA Wide Gamut then this is the crate for you.
+//! 
+//! Note that currently the results are not as accurate as they could be, due
+//! to the spectral->XYZ conversion not being implemented according to spec,
+//! but the results should be "good enough" for casual visual inspection. Be
+//! aware that future versions of the library will change some decimal places
+//! as the accuracy is improved.
+//! 
 //! # Examples
+//! ## Spectral to 8-bit, gamma encoded sRGB conversion
 //! ```
 //! // Definition of the sRGB color space
-//! use color_space::color_space_rgb::sRGB;
+//! use colorspace::color_space_rgb::sRGB;
 //! // The prelude brings in common types
-//! use color_space::prelude::*;
+//! use colorspace::prelude::*;
 //! // Convert the spectral data for a measured MacBeth chart swatch to XYZ
 //! // using the CIE 1931 2-degree CMFs and a D65 illuminant
 //! let xyz = babel_average::spd["dark_skin"]
-//!     .to_xyz_with_illuminant(&illuminant::D65);
-//! // Convert the XYZ value to a display-referred, 8-bit RGB value
-//! let rgb: RGBu8 = sRGB.xyz_to_rgb_with_oetf(xyz).into();
+//!     .to_xyz_with_illuminant(&illuminant::D65.spd);
+//! // Convert the XYZ value to scene-referred (i.e. linear) sRGB
+//! let xf_xyz_to_srgb = xyz_to_rgb_matrix(sRGB.white, &sRGB);
+//! let rgb = xyz_to_rgb(&xf_xyz_to_srgb, xyz);
+//! // Convert the scene-referred sRGB value to an 8-bit, display-referred
+//! // value by applying the opto-electrical transfer function and using RGBu8's
+//! // From<RGBf32> impl
+//! let rgb: RGBu8 = (sRGB.oetf)(rgb).into();
 //! assert_eq!(rgb, rgbu8(115, 82, 68));
 //! ```
+//! 
+//! # Licence
+//! colorspace is licensed under Apache License, Version 2.0
+//! http://www.apache.org/licenses/LICENSE-2.0
+//! 
+//! This crate contains some data taken from the excellent colour-science python
+//! library by Mansencal et al.: <https://www.colour-science.org>
+//! Copyright (c) 2013-2018, Colour Developers
+//! 
+//! Most of the conversion algorithms are based on those published at 
+//! Bruce Lindbloom's excellent site: <http://www.brucelindbloom.com>
+//! Copyright © 2001 - 2018 Bruce Justin Lindbloom.
+//! 
+//! BabelColor color-checker data is copyright © 2004‐2012 Danny Pascale (www.babelcolor.com); used with permission.
+//! <http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.xls>
+//! <http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.zip>
+//!
 
 pub mod chromatic_adaptation;
 pub mod chromaticity;
@@ -84,19 +115,22 @@ mod tests {
         eprintln!("rgbu16: {}", rgbu16);
 
         */
-        let d65_xyz = illuminant::D65.to_xyz().normalized();
+        let d65_xyz = illuminant::D65.spd.to_xyz().normalized();
         eprintln!("D65 xyz: {}", d65_xyz);
 
-        let d65_xyz_from_xy = XYZ::from(Chromaticity {
+        let d65_xyz_from_xy = XYZ::from(xyY {
             x: 0.3127,
             y: 0.3290,
+            Y: 1.0,
         });
         eprintln!("D65 xy->xyz: {}", d65_xyz_from_xy);
-        eprintln!("ACEScg matrix: {:?}", color_space_rgb::ACEScg.xf_xyz_to_rgb);
-        eprintln!(
-            "sRGB matrix: {:?}",
-            color_space_rgb::ITUR_BT709.xf_xyz_to_rgb
+
+        let xf_xyz_to_rec709 = xyz_to_rgb_matrix(
+            color_space_rgb::ITUR_BT709.white,
+            &color_space_rgb::ITUR_BT709
         );
+
+        eprintln!("D65 sRGB: {}", xyz_to_rgb(&xf_xyz_to_rec709, d65_xyz));
 
         let xf_xyz_to_acescg = xyz_to_rgb_matrix(
             color_space_rgb::ITUR_BT709.white,
@@ -118,15 +152,25 @@ mod tests {
             &color_space_rgb::ACEScg,
         );
 
+        let cat_d65_to_d50 = crate::chromatic_adaptation::bradford(illuminant::D65.xyz, illuminant::D50.xyz);
+
         for (name, ref spd) in &*babel_average::spd {
-            let xyz = spd.to_xyz_with_illuminant(&illuminant::D65);
-            let rgb = color_space_rgb::ITUR_BT709.xyz_to_rgb(xyz);
+            let xyz = spd.to_xyz_with_illuminant(&illuminant::D65.spd);
+            let rgb = xyz_to_rgb(&xf_xyz_to_rec709, xyz);
             let srgb = RGBu8::from(oetf::srgb(rgb));
             assert_eq!(srgb, babel_average::sRGB_u8[name]);
 
             eprintln!("\n{} ----------", name);
 
             eprintln!("XYZ       {}", xyz);
+
+            let xyy = xyY::from_xyz( cat_d65_to_d50 * xyz);
+            eprintln!("xyY       {:?}", xyy);
+
+            let lab = crate::lab::xyz_to_lab(cat_d65_to_d50 * xyz, illuminant::D50.xyz);
+            eprintln!("Lab       {:?}", lab);
+
+
             eprintln!("sRGB      {}", rgb);
 
             let rgb_acescg = xyz_to_rgb(&xf_xyz_to_acescg, xyz);

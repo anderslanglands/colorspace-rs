@@ -1,9 +1,13 @@
 use super::traits::*;
-use std::ops::{Index, IndexMut};
-use crate::xyz::XYZ;
 use crate::rgb::RGBf32;
+use crate::xyz::XYZ;
+use std::ops::{Index, IndexMut};
 
-pub fn clamp<T>(x: T, a: T, b: T) -> T where T: PartialOrd {
+/// Clamp `x` to lie in the range `[a, b]`
+pub fn clamp<T>(x: T, a: T, b: T) -> T
+where
+    T: PartialOrd,
+{
     if x < a {
         a
     } else if x > b {
@@ -13,20 +17,19 @@ pub fn clamp<T>(x: T, a: T, b: T) -> T where T: PartialOrd {
     }
 }
 
+/// Linearly interpolate from `a` to `b` by `t`
 pub fn lerp(a: f32, b: f32, t: f32) -> f32 {
     (1.0 - t) * a + t * b
 }
 
 /// Returns true if x and y are equal with an absolute error of e
-pub fn equal_with_abs_error(x: f32, y: f32, e: f32) -> bool
-{
+pub fn equal_with_abs_error(x: f32, y: f32, e: f32) -> bool {
     let a = if x > y { x - y } else { y - x };
     a <= e
 }
 
 /// Returns true if x and y are equal with a relative error of e
-pub fn equal_with_rel_error(x: f32, y: f32, e: f32) -> bool
-{
+pub fn equal_with_rel_error(x: f32, y: f32, e: f32) -> bool {
     let a = if x > y { x - y } else { y - x };
     let b = if x > 0.0 { x } else { -x };
     a <= e * b
@@ -39,7 +42,47 @@ pub fn sqrt(x: f32) -> f32 {
 
 #[inline(always)]
 pub fn sqr(x: f32) -> f32 {
-    x*x
+    x * x
+}
+
+#[inline(always)]
+pub fn abs(x: f32) -> f32 {
+    x.abs()
+}
+
+#[inline(always)]
+pub fn sin(x: f32) -> f32 {
+    x.sin()
+}
+
+#[inline(always)]
+pub fn asin(x: f32) -> f32 {
+    x.asin()
+}
+
+#[inline(always)]
+pub fn cos(x: f32) -> f32 {
+    x.cos()
+}
+
+#[inline(always)]
+pub fn acos(x: f32) -> f32 {
+    x.acos()
+}
+
+#[inline(always)]
+pub fn tan(x: f32) -> f32 {
+    x.tan()
+}
+
+#[inline(always)]
+pub fn atan2(x: f32, y: f32) -> f32 {
+    x.atan2(y)
+}
+
+#[inline(always)]
+pub fn exp(x: f32) -> f32 {
+    x.exp()
 }
 
 #[inline(always)]
@@ -48,34 +91,39 @@ pub fn pow(x: f32, y: f32) -> f32 {
 }
 
 #[inline(always)]
+pub fn hypot(x: f32, y: f32) -> f32 {
+    x.hypot(y)
+}
+
+#[inline(always)]
 pub fn powi(x: f32, i: i32) -> f32 {
     x.powi(i)
 }
 
+/// 3x3 Matrix type
+/// 
+/// Based on the Imath implementation
+/// https://github.com/openexr/openexr
+/// Copyright (c) 2006-17, Industrial Light & Magic, a division of Lucasfilm
+/// Entertainment Company Ltd.  Portions contributed and copyright held by
+/// others as indicated.  All rights reserved.
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-/// 3x3 Matrix type 
-pub struct Matrix33
-{
+pub struct Matrix33 {
     pub x: [f32; 9],
 }
 
-impl Matrix33
-{
+impl Matrix33 {
     /// Return a new identity matrix
     pub fn make_identity() -> Matrix33 {
         Matrix33 {
-            x: [
-                1.0, 0.0, 0.0,
-                0.0, 1.0, 0.0,
-                0.0, 0.0, 1.0,
-            ],
+            x: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
         }
     }
 
     /// Return a new matrix initialized with the `values` passed
     pub fn new(values: [f32; 9]) -> Matrix33 {
-        Matrix33{ x: values }
+        Matrix33 { x: values }
     }
 
     /// Compare 2 matrices for equality with absolute tolerance `e`
@@ -119,35 +167,6 @@ impl Matrix33
             + self[0][2] * (self[1][0] * self[2][1] - self[1][1] * self[2][0])
     }
 
-/*
-    /// Transform the Vec2 `v` as a point
-    pub fn transformp(self, v: Vec2<T>) -> Vec2<T> {
-        let a = v.x * self[0][0] + v.y * self[1][0] + self[2][0];
-        let b = v.x * self[0][1] + v.y * self[1][1] + self[2][1];
-        let w = v.x * self[0][2] + v.y * self[1][2] + self[2][2];
-
-        Vec2::<T> { x: a / w, y: b / w }
-    }
-
-    /// Transform the Vec2 `v` as a vector
-    pub fn transformv(self, v: Vec2<T>) -> Vec2<T> {
-        let a = v.x * self[0][0] + v.y * self[1][0];
-        let b = v.x * self[0][1] + v.y * self[1][1];
-
-        Vec2::<T> { x: a, y: b }
-    }
-
-    /// Wrapper for Imath's confusingly named convention for matrix * point
-    pub fn mult_vec_matrix(self, v: Vec2<T>) -> Vec2<T> {
-        self.transformp(v)
-    }
-
-    /// Wrapper for Imath's confusingly named convention for matrix * vector
-    pub fn mult_dir_matrix(self, v: Vec2<T>) -> Vec2<T> {
-        self.transformv(v)
-    }
-
-*/
     /// Gauss-Jordan matrix inversion
     pub fn gj_inverse(self) -> Option<Matrix33> {
         let mut mtx_t = self;
@@ -219,10 +238,7 @@ impl Matrix33
 
     /// Matrix inverse
     pub fn inverse(self) -> Option<Matrix33> {
-        if self[0][2] != 0.0
-            || self[1][2] != 0.0
-            || self[2][2] != 1.0
-        {
+        if self[0][2] != 0.0 || self[1][2] != 0.0 || self[2][2] != 1.0 {
             let mut mtx_s = Matrix33::new([
                 self[1][1] * self[2][2] - self[2][1] * self[1][2],
                 self[2][1] * self[0][2] - self[0][1] * self[2][2],
@@ -295,8 +311,7 @@ impl Matrix33
 
 /// Index operator. Returns a slice of the underlying matrix to allow
 /// `m[i][j]` indexing
-impl Index<usize> for Matrix33
-{
+impl Index<usize> for Matrix33 {
     type Output = [f32];
 
     fn index(&self, index: usize) -> &[f32] {
@@ -307,16 +322,14 @@ impl Index<usize> for Matrix33
 
 /// Mutable Index operator. Returns a slice of the underlying matrix to allow
 /// `m[i][j]` indexing
-impl IndexMut<usize> for Matrix33
-{
+impl IndexMut<usize> for Matrix33 {
     fn index_mut(&mut self, index: usize) -> &mut [f32] {
         let offset = index * 3;
         &mut self.x[offset..(offset + 3)]
     }
 }
 
-impl Mul for Matrix33
-{
+impl Mul for Matrix33 {
     type Output = Self;
 
     fn mul(self, rhs: Self) -> Self {
@@ -333,8 +346,7 @@ impl Mul for Matrix33
     }
 }
 
-impl Add<f32> for Matrix33
-{
+impl Add<f32> for Matrix33 {
     type Output = Self;
 
     fn add(self, rhs: f32) -> Self {
@@ -352,8 +364,7 @@ impl Add<f32> for Matrix33
     }
 }
 
-impl Sub<f32> for Matrix33
-{
+impl Sub<f32> for Matrix33 {
     type Output = Self;
 
     fn sub(self, rhs: f32) -> Self {
@@ -371,8 +382,7 @@ impl Sub<f32> for Matrix33
     }
 }
 
-impl Mul<f32> for Matrix33
-{
+impl Mul<f32> for Matrix33 {
     type Output = Self;
 
     fn mul(self, rhs: f32) -> Self {
@@ -390,8 +400,7 @@ impl Mul<f32> for Matrix33
     }
 }
 
-impl Div<f32> for Matrix33
-{
+impl Div<f32> for Matrix33 {
     type Output = Self;
 
     fn div(self, rhs: f32) -> Self {
@@ -409,8 +418,7 @@ impl Div<f32> for Matrix33
     }
 }
 
-impl Neg for Matrix33
-{
+impl Neg for Matrix33 {
     type Output = Self;
 
     fn neg(self) -> Self {
@@ -421,8 +429,7 @@ impl Neg for Matrix33
     }
 }
 
-impl Mul<XYZ> for Matrix33
-{
+impl Mul<XYZ> for Matrix33 {
     type Output = XYZ;
 
     fn mul(self, xyz: XYZ) -> XYZ {
@@ -434,8 +441,7 @@ impl Mul<XYZ> for Matrix33
     }
 }
 
-impl Mul<RGBf32> for Matrix33
-{
+impl Mul<RGBf32> for Matrix33 {
     type Output = RGBf32;
 
     fn mul(self, rgb: RGBf32) -> RGBf32 {

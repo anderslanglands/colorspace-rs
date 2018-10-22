@@ -4,14 +4,25 @@ pub mod babel_average {
     use lazy_static::lazy_static;
     use std::collections::HashMap;
     lazy_static! {
-        /// Hashmap containing spectral data for Gretag-Macbeth average chart data compiled by BabelColor:
-        /// http://www.babelcolor.com/colorchecker.htm
+        /// Hashmap containing spectral data for color checker chart compiled
+        /// by Danny Pascale
+        /// 
+        /// Reference:
+        /// BabelColor ColorChecker data: Copyright © 2004‐2012 Danny Pascale (www.babelcolor.com); used with permission.
+        /// http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.xls  
+        /// http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.zip
+        /// 
         /// # Examples
         /// ```
-        /// use color_space::prelude::*;
-        /// use color_space::color_space_rgb::sRGB;
-        /// let xyz = babel_average::spd["dark_skin"].to_xyz_with_illuminant(&illuminant::D65);
-        /// let rgb: RGBu8 = sRGB.xyz_to_rgb_with_oetf(xyz).into();
+        /// use colorspace::prelude::*;
+        /// use color_space_rgb::sRGB;
+        /// let xyz = babel_average::spd["dark_skin"].to_xyz_with_illuminant(&illuminant::D65.spd);
+        /// // Convert the XYZ value to scene-referred sRGB
+        /// let xf_xyz_to_srgb = xyz_to_rgb_matrix(sRGB.white, &sRGB);
+        /// let rgb = xyz_to_rgb(&xf_xyz_to_srgb, xyz);
+        /// // Convert the scene-referred sRGB value to an 8-bit, display-referred
+        /// // value by applying the opto-electrical transfer function
+        /// let rgb: RGBu8 = (sRGB.oetf)(rgb).into();
         /// assert_eq!(rgb, rgbu8(115, 82, 68));
         /// ```
         pub static ref spd: HashMap<&'static str, SPD> = {

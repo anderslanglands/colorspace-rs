@@ -1,5 +1,5 @@
 //! Defining RGB color spaces from primaries, whitepoint and OETF
-use super::chromaticity::Chromaticity;
+use super::chromaticity::xyY;
 use super::rgb::{rgbf32, RGBf32};
 use super::xyz::XYZ;
 use super::math::Matrix33;
@@ -162,20 +162,20 @@ pub type TransferFunction = Box<Fn(RGBf32) -> RGBf32 + Sync>;
 pub struct ColorSpaceRGB {
     pub xf_xyz_to_rgb: Matrix33,
     pub xf_rgb_to_xyz: Matrix33,
-    pub red: Chromaticity,
-    pub green: Chromaticity,
-    pub blue: Chromaticity,
-    pub white: Chromaticity,
+    pub red: xyY,
+    pub green: xyY,
+    pub blue: xyY,
+    pub white: xyY,
     pub oetf: TransferFunction,
     pub eotf: TransferFunction,
 }
 
 impl ColorSpaceRGB {
     pub fn new(
-        red: Chromaticity,
-        green: Chromaticity,
-        blue: Chromaticity,
-        white: Chromaticity,
+        red: xyY,
+        green: xyY,
+        blue: xyY,
+        white: xyY,
         oetf: TransferFunction,
         eotf: TransferFunction,
     ) -> ColorSpaceRGB {
@@ -196,10 +196,10 @@ impl ColorSpaceRGB {
     }
 
     pub fn new_with_specified_matrices(
-        red: Chromaticity,
-        green: Chromaticity,
-        blue: Chromaticity,
-        white: Chromaticity,
+        red: xyY,
+        green: xyY,
+        blue: xyY,
+        white: xyY,
         xf_xyz_to_rgb: Matrix33,
         xf_rgb_to_xyz: Matrix33,
         oetf: TransferFunction,
@@ -216,55 +216,13 @@ impl ColorSpaceRGB {
             eotf,
         }
     }
-
-    /// Transform the given XYZ color to scene-referred RGB in this color space
-    pub fn xyz_to_rgb(&self, xyz: XYZ) -> RGBf32 {
-        let m = &self.xf_xyz_to_rgb;
-        rgbf32(
-            m[0][0] * xyz.x + m[0][1] * xyz.y + m[0][2] * xyz.z,
-            m[1][0] * xyz.x + m[1][1] * xyz.y + m[1][2] * xyz.z,
-            m[2][0] * xyz.x + m[2][1] * xyz.y + m[2][2] * xyz.z,
-        )
-    }
-
-    /// Transform the given XYZ color to display-referred RGB in this color
-    /// space
-    pub fn xyz_to_rgb_with_oetf(&self, xyz: XYZ) -> RGBf32 {
-        let m = &self.xf_xyz_to_rgb;
-        (self.oetf)(rgbf32(
-            m[0][0] * xyz.x + m[0][1] * xyz.y + m[0][2] * xyz.z,
-            m[1][0] * xyz.x + m[1][1] * xyz.y + m[1][2] * xyz.z,
-            m[2][0] * xyz.x + m[2][1] * xyz.y + m[2][2] * xyz.z,
-        ))
-    }
-
-    /// Transform the given scene-referred RGB in this color space to XYZ
-    pub fn rgb_to_xyz(&self, rgb: RGBf32) -> XYZ {
-        let m = &self.xf_rgb_to_xyz;
-        XYZ::new(
-            m[0][0] * rgb.r + m[0][1] * rgb.g + m[0][2] * rgb.b,
-            m[1][0] * rgb.r + m[1][1] * rgb.g + m[1][2] * rgb.b,
-            m[2][0] * rgb.r + m[2][1] * rgb.g + m[2][2] * rgb.b,
-        )
-    }
-
-    /// Transform the given display-referred RGB in this color space to XYZ
-    pub fn rgb_to_xyz_with_eotf(&self, rgb: RGBf32) -> XYZ {
-        let rgb = (self.eotf)(rgb);
-        let m = &self.xf_rgb_to_xyz;
-        XYZ::new(
-            m[0][0] * rgb.r + m[0][1] * rgb.g + m[0][2] * rgb.b,
-            m[1][0] * rgb.r + m[1][1] * rgb.g + m[1][2] * rgb.b,
-            m[2][0] * rgb.r + m[2][1] * rgb.g + m[2][2] * rgb.b,
-        )
-    }
 }
 
 fn build_xyz_to_rgb_matrix(
-    red: &Chromaticity,
-    green: &Chromaticity,
-    blue: &Chromaticity,
-    white: &Chromaticity,
+    red: &xyY,
+    green: &xyY,
+    blue: &xyY,
+    white: &xyY,
 ) -> Matrix33 {
     let xr = red.x;
     let yr = red.y;
@@ -317,12 +275,13 @@ lazy_static! {
     /// Data taken https://en.wikipedia.org/wiki/SRGB
     pub static ref sRGB: ColorSpaceRGB = {
         ColorSpaceRGB::new_with_specified_matrices(
-            Chromaticity { x: 0.64, y: 0.33 },
-            Chromaticity { x: 0.30, y: 0.60 },
-            Chromaticity { x: 0.15, y: 0.06 },
-            Chromaticity {
+            xyY { x: 0.64, y: 0.33, Y: 1.0 },
+            xyY { x: 0.30, y: 0.60, Y: 1.0 },
+            xyY { x: 0.15, y: 0.06, Y: 1.0 },
+            xyY {
                 x: 0.3127,
                 y: 0.3290,
+                Y: 1.0,
             },
             Matrix33::new([3.2406, -1.5372, -0.4986,
             -0.9689, 1.8758, 0.0415,
@@ -339,12 +298,13 @@ lazy_static! {
     /// Data taken from https://en.wikipedia.org/wiki/Rec._709
     pub static ref ITUR_BT709: ColorSpaceRGB = {
         ColorSpaceRGB::new_with_specified_matrices(
-            Chromaticity { x: 0.64, y: 0.33 },
-            Chromaticity { x: 0.30, y: 0.60 },
-            Chromaticity { x: 0.15, y: 0.06 },
-            Chromaticity {
+            xyY { x: 0.64, y: 0.33, Y: 1.0 },
+            xyY { x: 0.30, y: 0.60, Y: 1.0 },
+            xyY { x: 0.15, y: 0.06, Y: 1.0 },
+            xyY {
                 x: 0.3127,
                 y: 0.3290,
+                Y: 1.0,
             },
             Matrix33::new([3.2406, -1.5372, -0.4986,
             -0.9689, 1.8758, 0.0415,
@@ -361,12 +321,13 @@ lazy_static! {
     /// Data taken from https://en.wikipedia.org/wiki/Rec._2020
     pub static ref ITUR_BT2020: ColorSpaceRGB = {
         ColorSpaceRGB::new(
-            Chromaticity { x: 0.708, y: 0.292 },
-            Chromaticity { x: 0.17, y: 0.797 },
-            Chromaticity { x: 0.131, y: 0.046 },
-            Chromaticity {
+            xyY { x: 0.708, y: 0.292, Y: 1.0 },
+            xyY { x: 0.17, y: 0.797, Y: 1.0 },
+            xyY { x: 0.131, y: 0.046, Y: 1.0 },
+            xyY {
                 x: 0.3127,
                 y: 0.3290,
+                Y: 1.0,
             },
             Box::new(oetf::bt2020),
             Box::new(eotf::bt2020),
@@ -377,12 +338,13 @@ lazy_static! {
     /// Data taken from https://en.wikipedia.org/wiki/DCI-P3
     pub static ref DCI_P3: ColorSpaceRGB = {
         ColorSpaceRGB::new(
-            Chromaticity { x: 0.680, y: 0.320 },
-            Chromaticity { x: 0.265, y: 0.690 },
-            Chromaticity { x: 0.150, y: 0.060 },
-            Chromaticity {
+            xyY { x: 0.680, y: 0.320, Y: 1.0 },
+            xyY { x: 0.265, y: 0.690, Y: 1.0 },
+            xyY { x: 0.150, y: 0.060 , Y: 1.0},
+            xyY {
                 x: 0.314,
                 y: 0.351,
+                Y: 1.0,
             },
             Box::new(|c: RGBf32| c.powf(1.0 / 2.6)),
             Box::new(|c: RGBf32| c.powf(2.6)),
@@ -393,12 +355,13 @@ lazy_static! {
     /// Data taken from https://en.wikipedia.org/wiki/DCI-P3
     pub static ref DCI_P3_D65: ColorSpaceRGB = {
         ColorSpaceRGB::new(
-            Chromaticity { x: 0.680, y: 0.320 },
-            Chromaticity { x: 0.265, y: 0.690 },
-            Chromaticity { x: 0.150, y: 0.060 },
-            Chromaticity {
+            xyY { x: 0.680, y: 0.320 , Y: 1.0},
+            xyY { x: 0.265, y: 0.690 , Y: 1.0},
+            xyY { x: 0.150, y: 0.060 , Y: 1.0},
+            xyY {
                 x: 0.3127,
                 y: 0.3290,
+                Y: 1.0,
             },
             Box::new(|c: RGBf32| c.powf(1.0 / 2.6)),
             Box::new(|c: RGBf32| c.powf(2.6)),
@@ -409,12 +372,13 @@ lazy_static! {
     /// Data taken from https://en.wikipedia.org/wiki/Academy_Color_Encoding_System
     pub static ref ACES2065_1: ColorSpaceRGB = {
         ColorSpaceRGB::new(
-            Chromaticity { x: 0.7347, y: 0.2653 },
-            Chromaticity { x: 0.0000, y: 1.0000 },
-            Chromaticity { x: 0.0001, y: -0.077 },
-            Chromaticity {
+            xyY { x: 0.7347, y: 0.2653, Y: 1.0},
+            xyY { x: 0.0000, y: 1.0000, Y: 1.0},
+            xyY { x: 0.0001, y: -0.077, Y: 1.0},
+            xyY {
                 x: 0.32168,
                 y: 0.33767,
+                Y: 1.0,
             },
             Box::new(oetf::linear),
             Box::new(eotf::linear),
@@ -425,12 +389,13 @@ lazy_static! {
     /// Data taken from https://en.wikipedia.org/wiki/Academy_Color_Encoding_System
     pub static ref ACEScg: ColorSpaceRGB = {
         ColorSpaceRGB::new(
-            Chromaticity { x: 0.713, y: 0.293 },
-            Chromaticity { x: 0.165, y: 0.830 },
-            Chromaticity { x: 0.128, y: 0.044 },
-            Chromaticity {
+            xyY { x: 0.713, y: 0.293, Y: 1.0},
+            xyY { x: 0.165, y: 0.830, Y: 1.0},
+            xyY { x: 0.128, y: 0.044, Y: 1.0},
+            xyY {
                 x: 0.32168,
                 y: 0.33767,
+                Y: 1.0,
             },
             Box::new(oetf::linear),
             Box::new(eotf::linear),
@@ -441,12 +406,13 @@ lazy_static! {
     /// Data taken from https://en.wikipedia.org/wiki/Adobe_RGB_color_space
     pub static ref Adobe: ColorSpaceRGB = {
         ColorSpaceRGB::new(
-            Chromaticity { x: 0.6400, y: 0.3300 },
-            Chromaticity { x: 0.2100, y: 0.7100 },
-            Chromaticity { x: 0.1500, y: 0.0600 },
-            Chromaticity {
+            xyY { x: 0.6400, y: 0.3300, Y: 1.0},
+            xyY { x: 0.2100, y: 0.7100, Y: 1.0},
+            xyY { x: 0.1500, y: 0.0600, Y: 1.0},
+            xyY {
                 x: 0.3127,
                 y: 0.3290,
+                Y: 1.0,
             },
             Box::new(|c: RGBf32| c.powf(1.0 / 2.19921875)),
             Box::new(|c: RGBf32| c.powf(2.19921875)),
@@ -459,12 +425,13 @@ lazy_static! {
     /// FIXME: Implement logC here as the OETF
     pub static ref AlexaWide: ColorSpaceRGB = {
         ColorSpaceRGB::new(
-            Chromaticity { x: 0.6840, y: 0.3130 },
-            Chromaticity { x: 0.2210, y: 0.8480 },
-            Chromaticity { x: 0.0861, y: -0.102 },
-            Chromaticity {
+            xyY { x: 0.6840, y: 0.3130, Y: 1.0},
+            xyY { x: 0.2210, y: 0.8480, Y: 1.0},
+            xyY { x: 0.0861, y: -0.102, Y: 1.0},
+            xyY {
                 x: 0.3127,
                 y: 0.3290,
+                Y: 1.0,
             },
             Box::new(oetf::linear),
             Box::new(eotf::linear),
