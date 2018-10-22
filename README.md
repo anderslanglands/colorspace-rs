@@ -11,9 +11,18 @@
  but the results should be "good enough" for casual visual inspection. Be
  aware that future versions of the library will change some decimal places
  as the accuracy is improved.
+
+ ## Types
+ ### Tristimulus 
+ The library contains two main types for working with color values: `XYZ` and `RGBf32`. These are both 32-bit floating point and have common component-wise math operations defined for them.
+
+ The `RGBu8` and `RGBu16` types are for storage only (for writing to images or passing to e.g. OpenGL for display) and do not define any operations. Additionally, `RGBf16` is provided if the `f16` feature is enabled. In order to perform mathematical operations on these types you should convert them to `RGBf32` first.
+
+ ### Spectral Power Distribution
+ `SPD`s are defined as a pair of `Vec`s of wavelengths and associated values. The library supplies spectral data for CIE illuminants in the `illuminant` module, and for the color checker chart in the `color_checker` module.
  
  ## Examples
- ### Spectral to 8-bit, gamma encoded sRGB conversion
+ ### Spectral to 8-bit, gamma-encoded sRGB conversion
  ```rust
  // Definition of the sRGB color space
  use colorspace::color_space_rgb::sRGB;

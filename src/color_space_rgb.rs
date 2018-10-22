@@ -1,7 +1,6 @@
 //! Defining RGB color spaces from primaries, whitepoint and OETF
 use super::chromaticity::xyY;
-use super::rgb::{rgbf32, RGBf32};
-use super::xyz::XYZ;
+use super::rgb::{RGBf32};
 use super::math::Matrix33;
 use lazy_static::lazy_static;
 
@@ -170,6 +169,23 @@ pub struct ColorSpaceRGB {
     pub eotf: TransferFunction,
 }
 
+/// Create a new color space using the supplied primaries and transfer functions
+/// ```
+/// // Define the DCI P3 color space
+/// use colorspace::prelude::*;
+/// let cs_dci_p3 = ColorSpaceRGB::new(
+///     xyY { x: 0.680, y: 0.320, Y: 1.0 },
+///     xyY { x: 0.265, y: 0.690, Y: 1.0 },
+///     xyY { x: 0.150, y: 0.060 , Y: 1.0},
+///     xyY {
+///         x: 0.314,
+///         y: 0.351,
+///         Y: 1.0,
+///     },
+///     Box::new(|c: RGBf32| c.powf(1.0 / 2.6)),
+///     Box::new(|c: RGBf32| c.powf(2.6)),
+/// );
+/// ```
 impl ColorSpaceRGB {
     pub fn new(
         red: xyY,
@@ -195,6 +211,33 @@ impl ColorSpaceRGB {
         }
     }
 
+    /// Create a new color space using the supplied XYZ->RGB conversion matrices
+    /// instead of deriving them from the primaries. This is useful when the 
+    /// published spec for a color space differs from its mathematical definition.
+    /// 
+    /// ```
+    /// // sRGB's published definition is different from the calculated values
+    /// // due to rounding
+    /// use colorspace::prelude::*;
+    /// let cs_srgb = ColorSpaceRGB::new_with_specified_matrices(
+    ///     xyY { x: 0.64, y: 0.33, Y: 1.0 },
+    ///     xyY { x: 0.30, y: 0.60, Y: 1.0 },
+    ///     xyY { x: 0.15, y: 0.06, Y: 1.0 },
+    ///     xyY {
+    ///         x: 0.3127,
+    ///         y: 0.3290,
+    ///         Y: 1.0,
+    ///     },
+    ///     Matrix33::new([3.2406, -1.5372, -0.4986,
+    ///                    -0.9689, 1.8758, 0.0415,
+    ///                    0.0557, -0.2040, 1.0570]),
+    ///     Matrix33::new([0.4124, 0.3576, 0.1805,
+    ///                    0.2126, 0.7152, 0.0722,
+    ///                    0.0193, 0.1192, 0.9505]),
+    ///     Box::new(oetf::srgb),
+    ///     Box::new(eotf::srgb),
+    /// );
+    /// ```
     pub fn new_with_specified_matrices(
         red: xyY,
         green: xyY,
@@ -215,6 +258,24 @@ impl ColorSpaceRGB {
             oetf,
             eotf,
         }
+    }
+
+    /// Convert a scene-referred, linear color to a display-referred, possibly
+    /// non-linear color using the opto-electrical transfer function.
+    /// If the color space does not have an associated OETF then it simply 
+    /// returns `c` unaltered.
+    #[inline(always)]
+    pub fn encode(&self, c: RGBf32) -> RGBf32 {
+        (self.oetf)(c)
+    }
+
+    /// Convert a display-referred, possibly non-linear color to a 
+    /// scene-referred, linear color using the electro-optical transfer function.
+    /// If the color space does not have an associated EOTF then it simply 
+    /// returns `c` unaltered.
+    #[inline(always)]
+    pub fn decode(&self, c: RGBf32) -> RGBf32 {
+        (self.eotf)(c)
     }
 }
 

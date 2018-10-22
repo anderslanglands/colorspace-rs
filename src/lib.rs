@@ -1,52 +1,66 @@
-//! A crate for colorimetry in Rust.
-//! This crate contains types and functions for working with color. The intended
-//! use is to support rendering applications (I use it to manage color in a spectral pathtracer), but if you want to be able to 
-//! convert between spectral, XYZ, L'a'b' and RGB spaces of various flavors such as
-//! sRGB, ACES, DCI P3 and ALEXA Wide Gamut then this is the crate for you.
-//! 
-//! Note that currently the results are not as accurate as they could be, due
-//! to the spectral->XYZ conversion not being implemented according to spec,
-//! but the results should be "good enough" for casual visual inspection. Be
-//! aware that future versions of the library will change some decimal places
-//! as the accuracy is improved.
-//! 
-//! # Examples
-//! ## Spectral to 8-bit, gamma encoded sRGB conversion
-//! ```
-//! // Definition of the sRGB color space
-//! use colorspace::color_space_rgb::sRGB;
-//! // The prelude brings in common types
-//! use colorspace::prelude::*;
-//! // Convert the spectral data for a measured MacBeth chart swatch to XYZ
-//! // using the CIE 1931 2-degree CMFs and a D65 illuminant
-//! let xyz = babel_average::spd["dark_skin"]
-//!     .to_xyz_with_illuminant(&illuminant::D65.spd);
-//! // Convert the XYZ value to scene-referred (i.e. linear) sRGB
-//! let xf_xyz_to_srgb = xyz_to_rgb_matrix(sRGB.white, &sRGB);
-//! let rgb = xyz_to_rgb(&xf_xyz_to_srgb, xyz);
-//! // Convert the scene-referred sRGB value to an 8-bit, display-referred
-//! // value by applying the opto-electrical transfer function and using RGBu8's
-//! // From<RGBf32> impl
-//! let rgb: RGBu8 = (sRGB.oetf)(rgb).into();
-//! assert_eq!(rgb, rgbu8(115, 82, 68));
-//! ```
-//! 
-//! # Licence
-//! colorspace is licensed under Apache License, Version 2.0
-//! http://www.apache.org/licenses/LICENSE-2.0
-//! 
-//! This crate contains some data taken from the excellent colour-science python
-//! library by Mansencal et al.: <https://www.colour-science.org>
-//! Copyright (c) 2013-2018, Colour Developers
-//! 
-//! Most of the conversion algorithms are based on those published at 
-//! Bruce Lindbloom's excellent site: <http://www.brucelindbloom.com>
-//! Copyright © 2001 - 2018 Bruce Justin Lindbloom.
-//! 
-//! BabelColor color-checker data is copyright © 2004‐2012 Danny Pascale (www.babelcolor.com); used with permission.
-//! <http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.xls>
-//! <http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.zip>
+//! # colorspace
+
+//!  A crate for colorimetry in Rust.
+//!  This crate contains types and functions for working with color. The intended
+//!  use is to support rendering applications (I use it to manage color in a spectral pathtracer), but if you want to be able to 
+//!  convert between spectral, XYZ, L'a'b' and RGB spaces of various flavors such as
+//!  sRGB, ACES, DCI P3 and ALEXA Wide Gamut then this is the crate for you.
+ 
+//!  Note that currently the results are not as accurate as they could be, due
+//!  to the spectral->XYZ conversion not being implemented according to spec,
+//!  but the results should be "good enough" for casual visual inspection. Be
+//!  aware that future versions of the library will change some decimal places
+//!  as the accuracy is improved.
+
+//!  ## Types
+//!  ### Tristimulus 
+//!  The library contains two main types for working with color values: `XYZ` and `RGBf32`. These are both 32-bit floating point and have common component-wise math operations defined for them.
+
+//!  The `RGBu8` and `RGBu16` types are for storage only (for writing to images or passing to e.g. OpenGL for display) and do not define any operations. Additionally, `RGBf16` is provided if the `f16` feature is enabled. In order to perform mathematical operations on these types you should convert them to `RGBf32` first.
+
+//!  ### Spectral Power Distribution
+//!  `SPD`s are defined as a pair of `Vec`s of wavelengths and associated values. The library supplies spectral data for CIE illuminants in the `illuminant` module, and for the color checker chart in the `color_checker` module.
+ 
+//!  ## Examples
+//!  ### Spectral to 8-bit, gamma-encoded sRGB conversion
+//!  ```rust
+//!  // Definition of the sRGB color space
+//!  use colorspace::color_space_rgb::sRGB;
+//!  // The prelude brings in common types
+//!  use colorspace::prelude::*;
+//!  // Convert the spectral data for a measured MacBeth chart swatch to XYZ
+//!  // using the CIE 1931 2-degree CMFs and a D65 illuminant
+//!  let xyz = babel_average::spd["dark_skin"]
+//!      .to_xyz_with_illuminant(&illuminant::D65.spd);
+//!  // Convert the XYZ value to scene-referred (i.e. linear) sRGB
+//!  let xf_xyz_to_srgb = xyz_to_rgb_matrix(sRGB.white, &sRGB);
+//!  let rgb = xyz_to_rgb(&xf_xyz_to_srgb, xyz);
+//!  // Convert the scene-referred sRGB value to an 8-bit, display-referred
+//!  // value by applying the opto-electrical transfer function and using RGBu8's
+//!  // From<RGBf32> impl
+//!  let rgb: RGBu8 = (sRGB.oetf)(rgb).into();
+//!  assert_eq!(rgb, rgbu8(115, 82, 68));
+//!  ```
 //!
+//!  ## Licence
+//!  colorspace is licensed under Apache License, Version 2.0
+//!  http://www.apache.org/licenses/LICENSE-2.0
+//! 
+//!  This crate contains some data taken from the excellent colour-science python
+//!  library by Mansencal et al.: <https://www.colour-science.org>
+//!  Copyright (c) 2013-2018, Colour Developers
+//! 
+//!  Most of the conversion algorithms are based on those published at 
+//!  Bruce Lindbloom's site: <http://www.brucelindbloom.com>
+//!  Copyright © 2001 - 2018 Bruce Justin Lindbloom.
+//! 
+//!  BabelColor color-checker data is copyright © 2004‐2012 Danny Pascale (www.babelcolor.com); used with permission.
+//!  <http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.xls>
+//!  <http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.zip>
+
+
+
+
 
 pub mod chromatic_adaptation;
 pub mod chromaticity;
@@ -63,6 +77,7 @@ mod traits;
 pub mod transform;
 pub mod xyz;
 pub mod lab;
+pub use crate::color_space_rgb::{sRGB, ITUR_BT709, ITUR_BT2020, DCI_P3, ACEScg, AlexaWide};
 
 #[cfg(test)]
 mod tests {
@@ -90,6 +105,7 @@ mod tests {
     #[test]
     fn spectral_to_rgb_conversion() {
         use crate::prelude::*;
+        use crate as colorspace;
 
         /*
         let xyz = babel_average::spd["dark_skin"]
@@ -115,42 +131,42 @@ mod tests {
         eprintln!("rgbu16: {}", rgbu16);
 
         */
-        let d65_xyz = illuminant::D65.spd.to_xyz().normalized();
-        eprintln!("D65 xyz: {}", d65_xyz);
+        // let d65_xyz = illuminant::D65.spd.to_xyz().normalized();
+        // eprintln!("D65 xyz: {}", d65_xyz);
 
-        let d65_xyz_from_xy = XYZ::from(xyY {
-            x: 0.3127,
-            y: 0.3290,
-            Y: 1.0,
-        });
-        eprintln!("D65 xy->xyz: {}", d65_xyz_from_xy);
+        // let d65_xyz_from_xy = XYZ::from(xyY {
+        //     x: 0.3127,
+        //     y: 0.3290,
+        //     Y: 1.0,
+        // });
+        // eprintln!("D65 xy->xyz: {}", d65_xyz_from_xy);
 
         let xf_xyz_to_rec709 = xyz_to_rgb_matrix(
-            color_space_rgb::ITUR_BT709.white,
-            &color_space_rgb::ITUR_BT709
+            colorspace::ITUR_BT709.white,
+            &colorspace::ITUR_BT709
         );
 
-        eprintln!("D65 sRGB: {}", xyz_to_rgb(&xf_xyz_to_rec709, d65_xyz));
+        // eprintln!("D65 sRGB: {}", xyz_to_rgb(&xf_xyz_to_rec709, d65_xyz));
 
-        let xf_xyz_to_acescg = xyz_to_rgb_matrix(
-            color_space_rgb::ITUR_BT709.white,
-            &color_space_rgb::ACEScg,
-        );
+        // let xf_xyz_to_acescg = xyz_to_rgb_matrix(
+        //     colorspace::ITUR_BT709.white,
+        //     &colorspace::ACEScg,
+        // );
 
-        let xf_xyz_to_p3 = xyz_to_rgb_matrix(
-            color_space_rgb::ITUR_BT709.white,
-            &color_space_rgb::DCI_P3,
-        );
+        // let xf_xyz_to_p3 = xyz_to_rgb_matrix(
+        //     colorspace::ITUR_BT709.white,
+        //     &colorspace::DCI_P3,
+        // );
 
-        let xf_xyz_to_alexawide = xyz_to_rgb_matrix(
-            color_space_rgb::ITUR_BT709.white,
-            &color_space_rgb::AlexaWide,
-        );
+        // let xf_xyz_to_alexawide = xyz_to_rgb_matrix(
+        //     colorspace::ITUR_BT709.white,
+        //     &colorspace::AlexaWide,
+        // );
 
-        let xf_r709_to_acescg = rgb_to_rgb_matrix(
-            &color_space_rgb::ITUR_BT709,
-            &color_space_rgb::ACEScg,
-        );
+        // let xf_r709_to_acescg = rgb_to_rgb_matrix(
+        //     &colorspace::ITUR_BT709,
+        //     &colorspace::ACEScg,
+        // );
 
         let cat_d65_to_d50 = crate::chromatic_adaptation::bradford(illuminant::D65.xyz, illuminant::D50.xyz);
 
@@ -160,29 +176,34 @@ mod tests {
             let srgb = RGBu8::from(oetf::srgb(rgb));
             assert_eq!(srgb, babel_average::sRGB_u8[name]);
 
-            eprintln!("\n{} ----------", name);
+            // eprintln!("\n{} ----------", name);
+            // eprintln!("XYZ       {}", xyz);
 
-            eprintln!("XYZ       {}", xyz);
-
-            let xyy = xyY::from_xyz( cat_d65_to_d50 * xyz);
-            eprintln!("xyY       {:?}", xyy);
+            // let xyy = xyY::from_xyz( cat_d65_to_d50 * xyz);
+            // eprintln!("xyY       {:?}", xyy);
 
             let lab = crate::lab::xyz_to_lab(cat_d65_to_d50 * xyz, illuminant::D50.xyz);
-            eprintln!("Lab       {:?}", lab);
+            // eprintln!("Lab       {:?}", lab);
 
+            let lab_ref = babel_average::Lab_D50[name];
+            // eprintln!("Lab ref   {:?}", lab_ref);
 
-            eprintln!("sRGB      {}", rgb);
+            let delta_e = delta_E(lab, lab_ref);
+            // eprintln!("delta E:  {}", delta_e);
+            assert!(delta_e < 1.4);
 
-            let rgb_acescg = xyz_to_rgb(&xf_xyz_to_acescg, xyz);
-            eprintln!("ACEScg    {}", rgb_acescg);
-            let rgb_acescg = xf_r709_to_acescg * rgb;
-            eprintln!("ACEScg (from709) {}", rgb_acescg);
+            // eprintln!("sRGB      {}", rgb);
 
-            let rgb_p3 = xyz_to_rgb(&xf_xyz_to_p3, xyz);
-            eprintln!("P3        {}", rgb_p3);
+            // let rgb_acescg = xyz_to_rgb(&xf_xyz_to_acescg, xyz);
+            // eprintln!("ACEScg    {}", rgb_acescg);
+            // let rgb_acescg = xf_r709_to_acescg * rgb;
+            // eprintln!("ACEScg (from709) {}", rgb_acescg);
 
-            let rgb_alexawide = xyz_to_rgb(&xf_xyz_to_alexawide, xyz);
-            eprintln!("AlexaWide {}", rgb_alexawide);
+            // let rgb_p3 = xyz_to_rgb(&xf_xyz_to_p3, xyz);
+            // eprintln!("P3        {}", rgb_p3);
+
+            // let rgb_alexawide = xyz_to_rgb(&xf_xyz_to_alexawide, xyz);
+            // eprintln!("AlexaWide {}", rgb_alexawide);
         }
     }
 }

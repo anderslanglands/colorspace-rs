@@ -6,23 +6,23 @@ pub mod babel_average {
     lazy_static! {
         /// Hashmap containing spectral data for color checker chart compiled
         /// by Danny Pascale
-        /// 
+        ///
         /// Reference:
         /// BabelColor ColorChecker data: Copyright © 2004‐2012 Danny Pascale (www.babelcolor.com); used with permission.
-        /// http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.xls  
+        /// http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.xls
         /// http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.zip
-        /// 
+        ///
         /// # Examples
         /// ```
         /// use colorspace::prelude::*;
-        /// use color_space_rgb::sRGB;
         /// let xyz = babel_average::spd["dark_skin"].to_xyz_with_illuminant(&illuminant::D65.spd);
         /// // Convert the XYZ value to scene-referred sRGB
-        /// let xf_xyz_to_srgb = xyz_to_rgb_matrix(sRGB.white, &sRGB);
+        /// let xf_xyz_to_srgb = xyz_to_rgb_matrix(colorspace::sRGB.white, 
+        ///                                         &colorspace::sRGB);
         /// let rgb = xyz_to_rgb(&xf_xyz_to_srgb, xyz);
         /// // Convert the scene-referred sRGB value to an 8-bit, display-referred
         /// // value by applying the opto-electrical transfer function
-        /// let rgb: RGBu8 = (sRGB.oetf)(rgb).into();
+        /// let rgb: RGBu8 = colorspace::sRGB.encode(rgb).into();
         /// assert_eq!(rgb, rgbu8(115, 82, 68));
         /// ```
         pub static ref spd: HashMap<&'static str, SPD> = {
@@ -515,6 +515,38 @@ pub mod babel_average {
             hm.insert("neutral_50", rgbu8(120, 121, 121));
             hm.insert("neutral_35", rgbu8(83, 85, 85));
             hm.insert("black_20", rgbu8(50,50, 51));
+
+            hm
+        };
+
+        pub static ref Lab_D50: HashMap<&'static str, crate::lab::Lab> = {
+            use crate::lab::lab;
+            let mut hm = HashMap::new();
+
+            hm.insert("dark_skin", lab(38.44, 13.61, 14.53));
+            hm.insert("light_skin", lab(65.95, 17.91, 17.87));
+            hm.insert("blue_sky", lab(50.06, -4.52, -22.25));
+            hm.insert("foliage", lab(43.28, -13.21, 21.94));
+            hm.insert("blue_flower", lab(55.31, 8.82, -24.60));
+            hm.insert("bluish_green", lab(70.69, -33.03, -0.11));
+            hm.insert("orange", lab(62.65, 35.35, 57.86));
+            hm.insert("purplish_blue", lab(40.24, 9.74, -44.35));
+            hm.insert("moderate_red", lab(51.60, 47.80, 16.90));
+            hm.insert("purple", lab(30.50, 21.07, -20.02));
+            hm.insert("yellow_green", lab(72.46, -23.30, 57.00));
+            hm.insert("orange_yellow", lab(71.95, 19.46, 68.12));
+            hm.insert("blue", lab(28.87, 14.81, -50.15));
+            hm.insert("green", lab(55.15, -37.80, 31.64));
+            hm.insert("red", lab(42.28, 54.12, 28.67));
+            hm.insert("yellow", lab(82.27, 4.02, 79.99));
+            hm.insert("magenta", lab(51.91, 49.80, -13.82));
+            hm.insert("cyan", lab(50.72, -28.11, -27.95));
+            hm.insert("white_95", lab(96.53, -0.47, 2.42));
+            hm.insert("neutral_80", lab(81.21, -0.64, 0.27));
+            hm.insert("neutral_65", lab(66.48, -0.53, 0.00));
+            hm.insert("neutral_50", lab(50.83, -0.64, -0.14));
+            hm.insert("neutral_35", lab(35.85, -0.54, -0.49));
+            hm.insert("black_20", lab(20.81, 0.03, -0.39));
 
             hm
         };

@@ -1,9 +1,7 @@
 //! Lab color space and difference calculations.
 //!
 //! See http://www.brucelindbloom.com/index.html?ColorDifferenceCalc.html
-use super::chromaticity::*;
 use super::math::*;
-use super::rgb::*;
 use super::xyz::*;
 
 #[repr(C, packed)]
@@ -76,23 +74,21 @@ pub fn delta_E_2000(c1: Lab, c2: Lab) -> f32 {
     let C_bar_ab = (C_1_ab + C_2_ab) / 2.0;
     let G = 0.5
         * (1.0 - sqrt(C_bar_ab.powi(7) / (C_bar_ab.powi(7) + 25.0f32.powi(7))));
-    println!("G: {}", G);
+    // println!("G: {}", G);
     let a_p_1 = (1.0 + G) * a_1;
-    println!("a_p_1: {}", a_p_1);
+    // println!("a_p_1: {}", a_p_1);
     let a_p_2 = (1.0 + G) * a_2;
-    println!("a_p_2: {}", a_p_2);
+    // println!("a_p_2: {}", a_p_2);
     let C_p_1 = hypot(a_p_1, b_1);
-    println!("C_p_1: {}", C_p_1);
+    // println!("C_p_1: {}", C_p_1);
     let C_p_2 = hypot(a_p_2, b_2);
-    println!("C_p_2: {}", C_p_2);
+    // println!("C_p_2: {}", C_p_2);
     let h_p_1 = atan2(b_1, a_p_1).to_degrees();
     let h_p_1 = if h_p_1 < 0.0 { h_p_1 + 360.0 } else { h_p_1 };
-    // let h_p_1 = atan2(a_p_1, b_1).to_degrees();
-    println!("h_p_1: {}", h_p_1);
+    // println!("h_p_1: {}", h_p_1);
     let h_p_2 = atan2(b_2, a_p_2).to_degrees();
     let h_p_2 = if h_p_2 < 0.0 { h_p_2 + 360.0 } else { h_p_2 };
-    // let h_p_2 = atan2(a_p_2, b_2).to_degrees();
-    println!("h_p_2: {}", h_p_2);
+    // println!("h_p_2: {}", h_p_2);
 
     // Step 2 - Calculate ΔL′, ΔC′, ΔH′
     let delta_L_p = L_2 - L_1;
@@ -128,13 +124,13 @@ pub fn delta_E_2000(c1: Lab, c2: Lab) -> f32 {
             (h_p_1 + h_p_2 - 360.0) / 2.0
         }
     };
-    println!("h_bar_p: {}", h_bar_p);
+    // println!("h_bar_p: {}", h_bar_p);
 
     let T = 1.0 - 0.17 * cos((h_bar_p - 30.0).to_radians())
         + 0.24 * cos((2.0 * h_bar_p).to_radians())
         + 0.32 * cos((3.0 * h_bar_p + 6.0).to_radians())
         - 0.20 * cos((4.0 * h_bar_p - 63.0).to_radians());
-    println!("T: {}", T);
+    // println!("T: {}", T);
 
     let delta_theta = 30.0 * exp(-sqr((h_bar_p - 275.0) / 25.0));
 
