@@ -1,12 +1,12 @@
 //! RGB color types
 
-use super::traits::*;
+use super::math::*;
+pub use super::traits::*;
+use std::convert::From;
 use std::fmt;
 use std::ops::{Index, IndexMut};
-use std::convert::From;
-use super::math::*;
 
-#[cfg(feature="f16")]
+#[cfg(feature = "f16")]
 use half::f16;
 
 /// Floating-point RGB type
@@ -359,6 +359,20 @@ rgbf_impl_rhs_div! {
     f32
 }
 
+pub fn hmax<T>(c: RGBf<T>) -> T
+where
+    T: Real,
+{
+    c.r.max(c.g.max(c.b))
+}
+
+pub fn normalize<T>(c: RGBf<T>) -> RGBf<T>
+where
+    T: Real,
+{
+    c / hmax(c)
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Default)]
 pub struct RGBu8 {
@@ -375,7 +389,7 @@ pub struct RGBu16 {
     pub b: u16,
 }
 
-#[cfg(feature="f16")]
+#[cfg(feature = "f16")]
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Default)]
 pub struct RGBf16 {
@@ -384,46 +398,70 @@ pub struct RGBf16 {
     pub b: f16,
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Default)]
+pub struct RGBAf32 {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+#[cfg(feature = "f16")]
+#[repr(C)]
+#[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Default)]
+pub struct RGBAf16 {
+    pub r: f16,
+    pub g: f16,
+    pub b: f16,
+    pub a: f16,
+}
+
 #[inline]
 pub fn rgbu8(r: u8, g: u8, b: u8) -> RGBu8 {
-    RGBu8 {
-        r, g, b
-    }
+    RGBu8 { r, g, b }
 }
 
 #[inline]
 pub fn rgbu16(r: u16, g: u16, b: u16) -> RGBu16 {
-    RGBu16 {
-        r, g, b
-    }
+    RGBu16 { r, g, b }
 }
 
-#[cfg(feature="f16")]
+#[cfg(feature = "f16")]
 #[inline]
 pub fn rgbf16(r: f16, g: f16, b: f16) -> RGBf16 {
-    RGBf16 {
-        r, g, b
-    }
+    RGBf16 { r, g, b }
+}
+
+#[cfg(feature = "f16")]
+#[inline]
+pub fn rgbaf16(r: f16, g: f16, b: f16, a: f16) -> RGBAf16 {
+    RGBAf16 { r, g, b, a }
+}
+
+#[inline]
+pub fn rgbaf32(r: f32, g: f32, b: f32, a: f32) -> RGBAf32 {
+    RGBAf32 { r, g, b, a }
 }
 
 impl From<RGBf32> for RGBu8 {
     fn from(c: RGBf32) -> RGBu8 {
-        RGBu8 { 
+        RGBu8 {
             r: (clamp(c.r, 0.0, 1.0) * 255.0).round() as u8,
             g: (clamp(c.g, 0.0, 1.0) * 255.0).round() as u8,
             b: (clamp(c.b, 0.0, 1.0) * 255.0).round() as u8,
-         }
-    }    
+        }
+    }
 }
 
 impl From<RGBf32> for RGBu16 {
     fn from(c: RGBf32) -> RGBu16 {
-        RGBu16 { 
+        RGBu16 {
             r: (clamp(c.r, 0.0, 1.0) * 65535.0).round() as u16,
             g: (clamp(c.g, 0.0, 1.0) * 65535.0).round() as u16,
             b: (clamp(c.b, 0.0, 1.0) * 65535.0).round() as u16,
-         }
-    }    
+        }
+    }
 }
 
 impl From<RGBu8> for RGBf32 {
@@ -446,23 +484,20 @@ impl From<RGBu16> for RGBf32 {
     }
 }
 
-impl fmt::Display for RGBu8
-{
+impl fmt::Display for RGBu8 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({}, {}, {})", self.r, self.g, self.b)
     }
 }
 
-impl fmt::Display for RGBu16
-{
+impl fmt::Display for RGBu16 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({}, {}, {})", self.r, self.g, self.b)
     }
 }
 
-#[cfg(feature="f16")]
-impl fmt::Display for RGBf16
-{
+#[cfg(feature = "f16")]
+impl fmt::Display for RGBf16 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({}, {}, {})", self.r, self.g, self.b)
     }

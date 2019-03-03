@@ -1,4 +1,4 @@
-pub(crate) use num_traits::{Bounded, Float, One, Zero};
+pub use num_traits::{Bounded, Float, One, Zero};
 pub(crate) use std::ops::{Add, Div, Mul, Neg, Sub};
 
 pub trait Scalar:
