@@ -2,10 +2,10 @@
 
 //!  A crate for colorimetry in Rust.
 //!  This crate contains types and functions for working with color. The intended
-//!  use is to support rendering applications (I use it to manage color in a spectral pathtracer), but if you want to be able to 
+//!  use is to support rendering applications (I use it to manage color in a spectral pathtracer), but if you want to be able to
 //!  convert between spectral, XYZ, L'a'b' and RGB spaces of various flavors such as
 //!  sRGB, ACES, DCI P3 and ALEXA Wide Gamut then this is the crate for you.
- 
+
 //!  Note that currently the results are not as accurate as they could be, due
 //!  to the spectral->XYZ conversion not being implemented according to spec,
 //!  but the results should be "good enough" for casual visual inspection. Be
@@ -13,14 +13,14 @@
 //!  as the accuracy is improved.
 
 //!  ## Types
-//!  ### Tristimulus 
+//!  ### Tristimulus
 //!  The library contains two main types for working with color values: `XYZ` and `RGBf32`. These are both 32-bit floating point and have common component-wise math operations defined for them.
 
 //!  The `RGBu8` and `RGBu16` types are for storage only (for writing to images or passing to e.g. OpenGL for display) and do not define any operations. Additionally, `RGBf16` is provided if the `f16` feature is enabled. In order to perform mathematical operations on these types you should convert them to `RGBf32` first.
 
 //!  ### Spectral Power Distribution
 //!  `SPD`s are defined as a pair of `Vec`s of wavelengths and associated values. The library supplies spectral data for CIE illuminants in the `illuminant` module, and for the color checker chart in the `color_checker` module.
- 
+
 //!  ## Examples
 //!  ### Spectral to 8-bit, gamma-encoded sRGB conversion
 //!  ```rust
@@ -45,22 +45,18 @@
 //!  ## Licence
 //!  colorspace is licensed under Apache License, Version 2.0
 //!  http://www.apache.org/licenses/LICENSE-2.0
-//! 
+//!
 //!  This crate contains some data taken from the excellent colour-science python
 //!  library by Mansencal et al.: <https://www.colour-science.org>
 //!  Copyright (c) 2013-2018, Colour Developers
-//! 
-//!  Most of the conversion algorithms are based on those published at 
+//!
+//!  Most of the conversion algorithms are based on those published at
 //!  Bruce Lindbloom's site: <http://www.brucelindbloom.com>
 //!  Copyright © 2001 - 2018 Bruce Justin Lindbloom.
-//! 
+//!
 //!  BabelColor color-checker data is copyright © 2004‐2012 Danny Pascale (www.babelcolor.com); used with permission.
 //!  <http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.xls>
 //!  <http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.zip>
-
-
-
-
 
 pub mod chromatic_adaptation;
 pub mod chromaticity;
@@ -68,6 +64,7 @@ pub mod cmf;
 pub mod color_checker;
 pub mod color_space_rgb;
 pub mod illuminant;
+pub mod lab;
 pub mod math;
 pub mod prelude;
 pub mod rgb;
@@ -76,8 +73,7 @@ pub mod spectral_power_distribution;
 mod traits;
 pub mod transform;
 pub mod xyz;
-pub mod lab;
-pub use crate::color_space_rgb::{sRGB, ITUR_BT709, ITUR_BT2020, DCI_P3, ACEScg, AlexaWide};
+pub use crate::color_space_rgb::{sRGB, ACEScg, AlexaWide, DCI_P3, ITUR_BT2020, ITUR_BT709};
 
 #[cfg(test)]
 mod tests {
@@ -89,12 +85,7 @@ mod tests {
         let c1 = RGBf32::from_scalar(0.18);
         assert!(c1.r == 0.18 && c1.g == 0.18 && c1.b == 0.18);
 
-        let s1 = SPD::consume(vec![
-            (400.0, 1.0),
-            (500.0, 2.0),
-            (600.0, 3.0),
-            (700.0, 4.0),
-        ]);
+        let s1 = SPD::consume(vec![(400.0, 1.0), (500.0, 2.0), (600.0, 3.0), (700.0, 4.0)]);
 
         assert_eq!(s1.value_at(450.0), 1.5);
         assert_eq!(s1.value_at(380.0), 1.0);
@@ -104,20 +95,23 @@ mod tests {
 
     #[test]
     fn spectral_to_rgb_conversion() {
-        use crate::prelude::*;
         use crate as colorspace;
+        use crate::prelude::*;
 
-        /*
-        let xyz = babel_average::spd["dark_skin"]
-            .to_xyz_with_illuminant(&illuminant::D65);
+        let xyz = babel_average::spd["dark_skin"].to_xyz_with_illuminant(&illuminant::D65.spd);
 
         eprintln!("xyz: {}", xyz);
 
-        let ones_xyz =
-            illuminant::Ones.to_xyz_with_illuminant(&illuminant::D65);
-        let ones_rgb = color_space_rgb::ITUR_BT709.xyz_to_rgb(ones_xyz);
-        eprintln!("ones_rgb: {}", ones_rgb);
+        let xf_xyz_to_rec709 =
+            xyz_to_rgb_matrix(colorspace::ITUR_BT709.white, &colorspace::ITUR_BT709);
 
+        let ones_xyz = illuminant::E
+            .spd
+            .to_xyz_with_illuminant(&illuminant::D65.spd);
+        let ones_rgb = xyz_to_rgb(&xf_xyz_to_rec709, ones_xyz);
+        println!("ones_rgb: {}", ones_rgb);
+
+        /*
         let rgb = color_space_rgb::ITUR_BT709.xyz_to_rgb(xyz);
         eprintln!("rgbf32: {}", rgb);
         let rgb = oetf::srgb(rgb);
@@ -141,11 +135,6 @@ mod tests {
         // });
         // eprintln!("D65 xy->xyz: {}", d65_xyz_from_xy);
 
-        let xf_xyz_to_rec709 = xyz_to_rgb_matrix(
-            colorspace::ITUR_BT709.white,
-            &colorspace::ITUR_BT709
-        );
-
         // eprintln!("D65 sRGB: {}", xyz_to_rgb(&xf_xyz_to_rec709, d65_xyz));
 
         // let xf_xyz_to_acescg = xyz_to_rgb_matrix(
@@ -168,7 +157,8 @@ mod tests {
         //     &colorspace::ACEScg,
         // );
 
-        let cat_d65_to_d50 = crate::chromatic_adaptation::bradford(illuminant::D65.xyz, illuminant::D50.xyz);
+        let cat_d65_to_d50 =
+            crate::chromatic_adaptation::bradford(illuminant::D65.xyz, illuminant::D50.xyz);
 
         for (name, ref spd) in &*babel_average::spd {
             let xyz = spd.to_xyz_with_illuminant(&illuminant::D65.spd);
