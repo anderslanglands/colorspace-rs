@@ -3,7 +3,7 @@
 //! Data taken from https://www.colour-science.org/
 //! Copyright (c) 2013-2018, Colour Developers
 
-use super::spectral_power_distribution::SPD;
+use super::spd::SPD;
 use super::xyz::XYZ;
 use lazy_static::lazy_static;
 

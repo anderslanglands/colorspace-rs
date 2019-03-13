@@ -1,6 +1,6 @@
 //! Color checker chart data for testing and calibration
 pub mod babel_average {
-    use crate::spectral_power_distribution::SPD;
+    use crate::spd::SPD;
     use lazy_static::lazy_static;
     use std::collections::HashMap;
     lazy_static! {

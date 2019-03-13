@@ -1,6 +1,6 @@
 //! Defines color matching functions. Currently only CIE 1931 2-degree
 //! standard observer
-use super::spectral_power_distribution::SPD;
+use super::spd::SPD;
 use lazy_static::lazy_static;
 
 /// Spectral sensitivity for each tristimulus value

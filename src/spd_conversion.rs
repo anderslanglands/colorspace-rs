@@ -3,7 +3,7 @@
 
 use super::cmf::CMF;
 use super::rgb::{clamprgb, RGBf32};
-use super::spectral_power_distribution::SPD;
+use super::spd::SPD;
 use super::traits::*;
 use super::xyz::XYZ;
 

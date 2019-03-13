@@ -68,8 +68,8 @@ pub mod lab;
 pub mod math;
 pub mod prelude;
 pub mod rgb;
+pub mod spd;
 pub mod spd_conversion;
-pub mod spectral_power_distribution;
 mod traits;
 pub mod transform;
 pub mod xyz;
@@ -82,7 +82,7 @@ mod tests {
     #[test]
     fn it_works() {
         use super::rgb::*;
-        use super::spectral_power_distribution::*;
+        use super::spd::*;
 
         let c1 = RGBf32::from_scalar(0.18);
         assert!(c1.r == 0.18 && c1.g == 0.18 && c1.b == 0.18);
