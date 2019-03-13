@@ -359,6 +359,7 @@ rgbf_impl_rhs_div! {
     f32
 }
 
+/// Returns the value of the largest component of `c`
 pub fn hmax<T>(c: RGBf<T>) -> T
 where
     T: Real,
@@ -366,6 +367,8 @@ where
     c.r.max(c.g.max(c.b))
 }
 
+/// Returns a colour whose values are a normalized version of `c`, such that
+/// the largest component in the return value will be 1.0
 pub fn normalize<T>(c: RGBf<T>) -> RGBf<T>
 where
     T: Real,
@@ -373,6 +376,7 @@ where
     c / hmax(c)
 }
 
+/// Clamp `c` such that each component is at least `a` and at most `b`
 pub fn clamprgb<T>(c: RGBf<T>, a: T, b: T) -> RGBf<T>
 where
     T: Real,

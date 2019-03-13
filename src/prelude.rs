@@ -6,7 +6,8 @@ pub use crate::lab::delta_E_2000 as delta_E;
 pub use crate::lab::Lab;
 pub use crate::math::*;
 pub use crate::rgb::{
-    hmax, normalize, rgbf32, rgbu16, rgbu8, RGBf32, RGBu16, RGBu8, Zero,
+    clamprgb, hmax, normalize, rgbf32, rgbu16, rgbu8, RGBf32, RGBu16, RGBu8,
+    Zero,
 };
 pub use crate::spd::*;
 pub use crate::spd_conversion::*;

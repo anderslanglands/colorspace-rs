@@ -6,11 +6,7 @@
  convert between spectral, XYZ, L'a'b' and RGB spaces of various flavors such as
  sRGB, ACES, DCI P3 and ALEXA Wide Gamut then this is the crate for you.
  
- Note that currently the results are not as accurate as they could be, due
- to the spectral->XYZ conversion not being implemented according to spec,
- but the results should be "good enough" for casual visual inspection. Be
- aware that future versions of the library will change some decimal places
- as the accuracy is improved.
+ Note that currently the results of the spectral->XYZ conversions are not as accurate as they could be, due to not being implemented according to spec, but the results should be "good enough" for casual visual inspection. Be aware that future versions of the library will change some decimal places as the accuracy is improved.
 
  ## Types
  ### Tristimulus 
@@ -24,8 +20,6 @@
  ## Examples
  ### Spectral to 8-bit, gamma-encoded sRGB conversion
  ```rust
- // Definition of the sRGB color space
- use colorspace::color_space_rgb::sRGB;
  // The prelude brings in common types
  use colorspace::prelude::*;
  // Convert the spectral data for a measured MacBeth chart swatch to XYZ
