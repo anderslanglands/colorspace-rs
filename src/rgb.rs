@@ -373,6 +373,13 @@ where
     c / hmax(c)
 }
 
+pub fn clamprgb<T>(c: RGBf<T>, a: T, b: T) -> RGBf<T>
+where
+    T: Real,
+{
+    RGBf::<T>::new(clamp(c.r, a, b), clamp(c.g, a, b), clamp(c.b, a, b))
+}
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Default)]
 pub struct RGBu8 {

@@ -152,17 +152,19 @@ impl SPD {
             let l0 = 0;
             let l1 = 1;
             self.samples[l1].1
-                + (lambda - self.samples[l1].0) / (self.samples[l0].0 - self.samples[l1].0)
+                + (lambda - self.samples[l1].0)
+                    / (self.samples[l0].0 - self.samples[l1].0)
                     * (self.samples[l0].1 - self.samples[l1].1)
         } else if lambda > self.end() {
             let l0 = self.num_samples() - 1;
             let l1 = self.num_samples() - 2;
             self.samples[l1].1
-                + (lambda - self.samples[l1].0) / (self.samples[l0].0 - self.samples[l1].0)
+                + (lambda - self.samples[l1].0)
+                    / (self.samples[l0].0 - self.samples[l1].0)
                     * (self.samples[l0].1 - self.samples[l1].1)
         } else {
             let t = (lambda - self.start()) / self.range();
-            let i0 = (t * self.num_samples() as f32) as i32;
+            let i0 = (t * (self.num_samples() - 1) as f32) as i32;
             let i1 = i0 + 1;
             let i0 = clamp(i0, 0, self.num_samples() as i32 - 1) as usize;
             let i1 = clamp(i1, 0, self.num_samples() as i32 - 1) as usize;
@@ -197,7 +199,12 @@ impl SPD {
     }
 
     /// Returns an iterator that interpolates this `SPD` over the range [`start`, `end`] with the given number of `steps`
-    pub fn interpolate_by(&self, start: f32, end_inc: f32, steps: u32) -> InterpolatingIterator {
+    pub fn interpolate_by(
+        &self,
+        start: f32,
+        end_inc: f32,
+        steps: u32,
+    ) -> InterpolatingIterator {
         InterpolatingIterator {
             spd: &self,
             current: 0,
@@ -208,13 +215,37 @@ impl SPD {
     }
 
     /// Returns an iterator that interpolates and extrapolates this `SPD` over the range [`start`, `end`] with the given number of `steps`
-    pub fn extrapolate_by(&self, start: f32, end_inc: f32, steps: u32) -> ExtrapolatingIterator {
+    pub fn extrapolate_by(
+        &self,
+        start: f32,
+        end_inc: f32,
+        steps: u32,
+    ) -> ExtrapolatingIterator {
         ExtrapolatingIterator {
             spd: &self,
             current: 0,
             steps: steps,
             start: start,
             range: end_inc - start,
+        }
+    }
+
+    pub fn zip<'a, 'b>(
+        &'a self,
+        rhs: &'b SPD,
+    ) -> ZippedExtrapolatingIterator<'a, 'b> {
+        let start = self.start().min(rhs.start());
+        let end = self.end().max(rhs.end());
+        let delta = (self.range() / (self.num_samples() as f32 - 1.0))
+            .min(rhs.range() / (rhs.num_samples() as f32 - 1.0));
+        let num_samples = ((end - start) / delta) as u32 + 1;
+        ZippedExtrapolatingIterator {
+            spd_l: self,
+            spd_r: rhs,
+            current: 0,
+            steps: num_samples,
+            start,
+            delta,
         }
     }
 }
@@ -242,6 +273,32 @@ impl<'a> Iterator for InterpolatingIterator<'a> {
             let lambda = self.start + self.range * delta;
             self.current += 1;
             Some((lambda, self.spd.value_at(lambda).max(0.0)))
+        } else {
+            None
+        }
+    }
+}
+
+pub struct ZippedExtrapolatingIterator<'a, 'b> {
+    spd_l: &'a SPD,
+    spd_r: &'b SPD,
+    current: u32,
+    steps: u32,
+    start: f32,
+    delta: f32,
+}
+
+impl<'a, 'b> Iterator for ZippedExtrapolatingIterator<'a, 'b> {
+    type Item = (f32, f32, f32);
+    fn next(&mut self) -> Option<(f32, f32, f32)> {
+        if self.current < self.steps {
+            let lambda = self.start + self.delta * self.current as f32;
+            self.current += 1;
+            Some((
+                lambda,
+                self.spd_l.value_at_extrapolate(lambda).max(0.0),
+                self.spd_r.value_at_extrapolate(lambda).max(0.0),
+            ))
         } else {
             None
         }
@@ -281,9 +338,205 @@ impl FromIterator<(f32, f32)> for SPD {
     }
 }
 
+use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
+
+impl Add for SPD {
+    type Output = SPD;
+
+    fn add(self, rhs: SPD) -> SPD {
+        self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l + v_r)).collect()
+    }
+}
+
+impl Mul for SPD {
+    type Output = SPD;
+
+    fn mul(self, rhs: SPD) -> SPD {
+        self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l * v_r)).collect()
+    }
+}
+
+impl Sub for SPD {
+    type Output = SPD;
+
+    fn sub(self, rhs: SPD) -> SPD {
+        self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l - v_r)).collect()
+    }
+}
+
+impl Div for SPD {
+    type Output = SPD;
+
+    fn div(self, rhs: SPD) -> SPD {
+        self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l / v_r)).collect()
+    }
+}
+
+impl Neg for SPD {
+    type Output = SPD;
+
+    fn neg(self) -> SPD {
+        self.samples.into_iter().map(|(l, v)| (l, -v)).collect()
+    }
+}
+
+impl Add<f32> for SPD {
+    type Output = SPD;
+
+    fn add(self, rhs: f32) -> SPD {
+        self.samples
+            .into_iter()
+            .map(|(l, v)| (l, v + rhs))
+            .collect()
+    }
+}
+
+impl Mul<f32> for SPD {
+    type Output = SPD;
+
+    fn mul(self, rhs: f32) -> SPD {
+        self.samples
+            .into_iter()
+            .map(|(l, v)| (l, v * rhs))
+            .collect()
+    }
+}
+
+impl Sub<f32> for SPD {
+    type Output = SPD;
+
+    fn sub(self, rhs: f32) -> SPD {
+        self.samples
+            .into_iter()
+            .map(|(l, v)| (l, v - rhs))
+            .collect()
+    }
+}
+
+impl Div<f32> for SPD {
+    type Output = SPD;
+
+    fn div(self, rhs: f32) -> SPD {
+        self.samples
+            .into_iter()
+            .map(|(l, v)| (l, v / rhs))
+            .collect()
+    }
+}
+
+impl Add<SPD> for f32 {
+    type Output = SPD;
+    fn add(self, rhs: SPD) -> SPD {
+        rhs.samples
+            .into_iter()
+            .map(|(l, v)| (l, v + self))
+            .collect()
+    }
+}
+
+impl Sub<SPD> for f32 {
+    type Output = SPD;
+    fn sub(self, rhs: SPD) -> SPD {
+        rhs.samples
+            .into_iter()
+            .map(|(l, v)| (l, v - self))
+            .collect()
+    }
+}
+
+impl Mul<SPD> for f32 {
+    type Output = SPD;
+    fn mul(self, rhs: SPD) -> SPD {
+        rhs.samples
+            .into_iter()
+            .map(|(l, v)| (l, v * self))
+            .collect()
+    }
+}
+
+impl Div<SPD> for f32 {
+    type Output = SPD;
+    fn div(self, rhs: SPD) -> SPD {
+        rhs.samples
+            .into_iter()
+            .map(|(l, v)| (l, v / self))
+            .collect()
+    }
+}
+
+impl AddAssign for SPD {
+    fn add_assign(&mut self, rhs: SPD) {
+        *self = self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l + v_r)).collect();
+    }
+}
+
+impl MulAssign for SPD {
+    fn mul_assign(&mut self, rhs: SPD) {
+        *self = self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l * v_r)).collect();
+    }
+}
+
+impl SubAssign for SPD {
+    fn sub_assign(&mut self, rhs: SPD) {
+        *self = self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l - v_r)).collect();
+    }
+}
+
+impl DivAssign for SPD {
+    fn div_assign(&mut self, rhs: SPD) {
+        *self = self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l / v_r)).collect();
+    }
+}
+
+impl AddAssign<f32> for SPD {
+    fn add_assign(&mut self, rhs: f32) {
+        self.samples
+            .iter_mut()
+            .map(|(_, v)| {
+                *v += rhs;
+            })
+            .all(|_| true);
+    }
+}
+
+impl SubAssign<f32> for SPD {
+    fn sub_assign(&mut self, rhs: f32) {
+        self.samples
+            .iter_mut()
+            .map(|(_, v)| {
+                *v -= rhs;
+            })
+            .all(|_| true);
+    }
+}
+
+impl MulAssign<f32> for SPD {
+    fn mul_assign(&mut self, rhs: f32) {
+        self.samples
+            .iter_mut()
+            .map(|(_, v)| {
+                *v *= rhs;
+            })
+            .all(|_| true);
+    }
+}
+
+impl DivAssign<f32> for SPD {
+    fn div_assign(&mut self, rhs: f32) {
+        self.samples
+            .iter_mut()
+            .map(|(l, v)| {
+                *v /= rhs;
+            })
+            .all(|_| true);
+    }
+}
+
 #[test]
 fn test_interpolation() {
-    let spd = SPD::new(&[(400.0, 0.5), (500.0, 1.0), (600.0, 1.0), (700.0, 0.5)]);
+    let spd =
+        SPD::new(&[(400.0, 0.5), (500.0, 1.0), (600.0, 1.0), (700.0, 0.5)]);
 
     let i1: SPD = spd.interpolate_by(300.0, 800.0, 6).collect();
     assert_eq!(
@@ -310,4 +563,79 @@ fn test_interpolation() {
             (800.0, 0.0),
         ])
     );
+}
+
+#[test]
+fn test_ops() {
+    let a = SPD::new(&[(400.0, 1.0), (500.0, 2.0), (600.0, 3.0), (700.0, 4.0)]);
+
+    let b = SPD::new(&[(400.0, 5.0), (500.0, 6.0), (600.0, 7.0), (700.0, 8.0)]);
+
+    assert_eq!(
+        a + b,
+        SPD::new(&[(400.0, 6.0), (500.0, 8.0), (600.0, 10.0), (700.0, 12.0),])
+    );
+
+    let c = SPD::new(&[(500.0, 1.0), (600.0, 1.0), (700.0, 0.0)]);
+    let d = SPD::new(&[
+        (400.0, 0.0),
+        (450.0, 0.25),
+        (500.0, 0.5),
+        (550.0, 1.0),
+        (600.0, 0.5),
+        (650.0, 0.25),
+        (700.0, 0.0),
+    ]);
+
+    assert_eq!(
+        c.clone() + d.clone(),
+        SPD::new(&[
+            (400.0, 1.0),
+            (450.0, 1.25),
+            (500.0, 1.5),
+            (550.0, 2.0),
+            (600.0, 1.5),
+            (650.0, 0.75),
+            (700.0, 0.0),
+        ])
+    );
+
+    let mut c1 = c.clone();
+    c1 += d;
+    assert_eq!(
+        c1,
+        SPD::new(&[
+            (400.0, 1.0),
+            (450.0, 1.25),
+            (500.0, 1.5),
+            (550.0, 2.0),
+            (600.0, 1.5),
+            (650.0, 0.75),
+            (700.0, 0.0),
+        ])
+    );
+
+    let a = SPD::new(&[(100.0, 1.0), (200.0, 1.0)]);
+    let b = SPD::new(&[(100.0, 2.0), (200.0, 2.0)]);
+
+    assert_eq!(
+        a.clone() * b.clone(),
+        SPD::new(&[(100.0, 2.0), (200.0, 2.0),])
+    );
+
+    assert_eq!(
+        a.clone() / b.clone(),
+        SPD::new(&[(100.0, 0.5), (200.0, 0.5),])
+    );
+
+    assert_eq!(
+        b.clone() - a.clone(),
+        SPD::new(&[(100.0, 1.0), (200.0, 1.0),])
+    );
+
+    assert_eq!(a.clone() * 4.0, SPD::new(&[(100.0, 4.0), (200.0, 4.0),]));
+
+    assert_eq!(a.clone() / 4.0, SPD::new(&[(100.0, 0.25), (200.0, 0.25),]));
+
+    assert_eq!(a.clone() - 0.5, SPD::new(&[(100.0, 0.5), (200.0, 0.5),]));
 }

@@ -101,7 +101,7 @@ pub fn powi(x: f32, i: i32) -> f32 {
 }
 
 /// 3x3 Matrix type
-/// 
+///
 /// Based on the Imath implementation
 /// https://github.com/openexr/openexr
 /// Copyright (c) 2006-17, Industrial Light & Magic, a division of Lucasfilm
@@ -154,9 +154,8 @@ impl Matrix33 {
     pub fn transposed(self) -> Matrix33 {
         Matrix33 {
             x: [
-                self[0][0], self[1][0], self[2][0], 
-                self[0][1], self[1][1], self[2][1], 
-                self[0][2], self[1][2], self[2][2],
+                self[0][0], self[1][0], self[2][0], self[0][1], self[1][1],
+                self[2][1], self[0][2], self[1][2], self[2][2],
             ],
         }
     }

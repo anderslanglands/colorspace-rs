@@ -1,3 +1,2 @@
-edition = "Edition2018"
+edition = "2018"
 max_width = 80
-wrap_comments = true

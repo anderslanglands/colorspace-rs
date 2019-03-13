@@ -73,7 +73,9 @@ pub mod spectral_power_distribution;
 mod traits;
 pub mod transform;
 pub mod xyz;
-pub use crate::color_space_rgb::{sRGB, ACEScg, AlexaWide, DCI_P3, ITUR_BT2020, ITUR_BT709};
+pub use crate::color_space_rgb::{
+    sRGB, ACEScg, AlexaWide, DCI_P3, ITUR_BT2020, ITUR_BT709,
+};
 
 #[cfg(test)]
 mod tests {
@@ -85,7 +87,12 @@ mod tests {
         let c1 = RGBf32::from_scalar(0.18);
         assert!(c1.r == 0.18 && c1.g == 0.18 && c1.b == 0.18);
 
-        let s1 = SPD::consume(vec![(400.0, 1.0), (500.0, 2.0), (600.0, 3.0), (700.0, 4.0)]);
+        let s1 = SPD::consume(vec![
+            (400.0, 1.0),
+            (500.0, 2.0),
+            (600.0, 3.0),
+            (700.0, 4.0),
+        ]);
 
         assert_eq!(s1.value_at(450.0), 1.5);
         assert_eq!(s1.value_at(380.0), 1.0);
@@ -98,12 +105,15 @@ mod tests {
         use crate as colorspace;
         use crate::prelude::*;
 
-        let xyz = babel_average::spd["dark_skin"].to_xyz_with_illuminant(&illuminant::D65.spd);
+        let xyz = babel_average::spd["dark_skin"]
+            .to_xyz_with_illuminant(&illuminant::D65.spd);
 
         eprintln!("xyz: {}", xyz);
 
-        let xf_xyz_to_rec709 =
-            xyz_to_rgb_matrix(colorspace::ITUR_BT709.white, &colorspace::ITUR_BT709);
+        let xf_xyz_to_rec709 = xyz_to_rgb_matrix(
+            colorspace::ITUR_BT709.white,
+            &colorspace::ITUR_BT709,
+        );
 
         let ones_xyz = illuminant::E
             .spd
@@ -157,8 +167,10 @@ mod tests {
         //     &colorspace::ACEScg,
         // );
 
-        let cat_d65_to_d50 =
-            crate::chromatic_adaptation::bradford(illuminant::D65.xyz, illuminant::D50.xyz);
+        let cat_d65_to_d50 = crate::chromatic_adaptation::bradford(
+            illuminant::D65.xyz,
+            illuminant::D50.xyz,
+        );
 
         for (name, ref spd) in &*babel_average::spd {
             let xyz = spd.to_xyz_with_illuminant(&illuminant::D65.spd);
@@ -172,7 +184,10 @@ mod tests {
             // let xyy = xyY::from_xyz( cat_d65_to_d50 * xyz);
             // eprintln!("xyY       {:?}", xyy);
 
-            let lab = crate::lab::xyz_to_lab(cat_d65_to_d50 * xyz, illuminant::D50.xyz);
+            let lab = crate::lab::xyz_to_lab(
+                cat_d65_to_d50 * xyz,
+                illuminant::D50.xyz,
+            );
             // eprintln!("Lab       {:?}", lab);
 
             let lab_ref = babel_average::Lab_D50[name];
@@ -182,7 +197,7 @@ mod tests {
             // eprintln!("delta E:  {}", delta_e);
             assert!(delta_e < 1.4);
 
-            // eprintln!("sRGB      {}", rgb);
+            eprintln!("{} sRGB      {}", name, rgb);
 
             // let rgb_acescg = xyz_to_rgb(&xf_xyz_to_acescg, xyz);
             // eprintln!("ACEScg    {}", rgb_acescg);

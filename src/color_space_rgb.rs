@@ -1,7 +1,7 @@
 //! Defining RGB color spaces from primaries, whitepoint and OETF
 use super::chromaticity::xyY;
-use super::rgb::{RGBf32};
 use super::math::Matrix33;
+use super::rgb::RGBf32;
 use lazy_static::lazy_static;
 
 pub mod oetf {
@@ -212,9 +212,9 @@ impl ColorSpaceRGB {
     }
 
     /// Create a new color space using the supplied XYZ->RGB conversion matrices
-    /// instead of deriving them from the primaries. This is useful when the 
+    /// instead of deriving them from the primaries. This is useful when the
     /// published spec for a color space differs from its mathematical definition.
-    /// 
+    ///
     /// ```
     /// // sRGB's published definition is different from the calculated values
     /// // due to rounding
@@ -262,16 +262,16 @@ impl ColorSpaceRGB {
 
     /// Convert a scene-referred, linear color to a display-referred, possibly
     /// non-linear color using the opto-electrical transfer function.
-    /// If the color space does not have an associated OETF then it simply 
+    /// If the color space does not have an associated OETF then it simply
     /// returns `c` unaltered.
     #[inline(always)]
     pub fn encode(&self, c: RGBf32) -> RGBf32 {
         (self.oetf)(c)
     }
 
-    /// Convert a display-referred, possibly non-linear color to a 
+    /// Convert a display-referred, possibly non-linear color to a
     /// scene-referred, linear color using the electro-optical transfer function.
-    /// If the color space does not have an associated EOTF then it simply 
+    /// If the color space does not have an associated EOTF then it simply
     /// returns `c` unaltered.
     #[inline(always)]
     pub fn decode(&self, c: RGBf32) -> RGBf32 {

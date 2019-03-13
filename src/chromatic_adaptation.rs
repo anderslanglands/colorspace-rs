@@ -24,9 +24,15 @@ pub fn bradford(wp_src: XYZ, wp_dst: XYZ) -> Matrix33 {
     let wp_dst_A = M_A * wp_dst;
 
     let M_wp = Matrix33::new([
-        wp_dst_A.x / wp_src_A.x, 0.0, 0.0,
-        0.0, wp_dst_A.y / wp_src_A.y, 0.0,
-        0.0, 0.0, wp_dst_A.z / wp_src_A.z,
+        wp_dst_A.x / wp_src_A.x,
+        0.0,
+        0.0,
+        0.0,
+        wp_dst_A.y / wp_src_A.y,
+        0.0,
+        0.0,
+        0.0,
+        wp_dst_A.z / wp_src_A.z,
     ]);
 
     M_A_inv * M_wp * M_A

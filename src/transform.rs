@@ -9,7 +9,8 @@ pub fn xyz_to_rgb_matrix(
     xyz_white: xyY,
     color_space_rgb: &ColorSpaceRGB,
 ) -> Matrix33 {
-    color_space_rgb.xf_xyz_to_rgb * bradford(xyz_white.into(), color_space_rgb.white.into())
+    color_space_rgb.xf_xyz_to_rgb
+        * bradford(xyz_white.into(), color_space_rgb.white.into())
 }
 
 pub fn xyz_to_rgb(mtx: &Matrix33, xyz: XYZ) -> RGBf32 {

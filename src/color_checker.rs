@@ -17,7 +17,7 @@ pub mod babel_average {
         /// use colorspace::prelude::*;
         /// let xyz = babel_average::spd["dark_skin"].to_xyz_with_illuminant(&illuminant::D65.spd);
         /// // Convert the XYZ value to scene-referred sRGB
-        /// let xf_xyz_to_srgb = xyz_to_rgb_matrix(colorspace::sRGB.white, 
+        /// let xf_xyz_to_srgb = xyz_to_rgb_matrix(colorspace::sRGB.white,
         ///                                         &colorspace::sRGB);
         /// let rgb = xyz_to_rgb(&xf_xyz_to_srgb, xyz);
         /// // Convert the scene-referred sRGB value to an 8-bit, display-referred
