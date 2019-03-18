@@ -108,8 +108,6 @@ mod tests {
         let xyz = babel_average::spd["dark_skin"]
             .to_xyz_with_illuminant(&illuminant::D65.spd);
 
-        eprintln!("xyz: {}", xyz);
-
         let xf_xyz_to_rec709 = xyz_to_rgb_matrix(
             colorspace::ITUR_BT709.white,
             &colorspace::ITUR_BT709,
@@ -121,52 +119,6 @@ mod tests {
         let ones_rgb = xyz_to_rgb(&xf_xyz_to_rec709, ones_xyz);
         println!("ones_rgb: {}", ones_rgb);
 
-        /*
-        let rgb = color_space_rgb::ITUR_BT709.xyz_to_rgb(xyz);
-        eprintln!("rgbf32: {}", rgb);
-        let rgb = oetf::srgb(rgb);
-        eprintln!("rgbf32 srgb: {}", rgb);
-        let rgbu8 = RGBu8::from(rgb);
-        let rgbu16 = RGBu16::from(rgb);
-
-        assert_eq!(rgbu8, babel_average::srgb_u8::dark_skin);
-
-        eprintln!("rgbu8: {}", rgbu8);
-        eprintln!("rgbu16: {}", rgbu16);
-
-        */
-        // let d65_xyz = illuminant::D65.spd.to_xyz().normalized();
-        // eprintln!("D65 xyz: {}", d65_xyz);
-
-        // let d65_xyz_from_xy = XYZ::from(xyY {
-        //     x: 0.3127,
-        //     y: 0.3290,
-        //     Y: 1.0,
-        // });
-        // eprintln!("D65 xy->xyz: {}", d65_xyz_from_xy);
-
-        // eprintln!("D65 sRGB: {}", xyz_to_rgb(&xf_xyz_to_rec709, d65_xyz));
-
-        // let xf_xyz_to_acescg = xyz_to_rgb_matrix(
-        //     colorspace::ITUR_BT709.white,
-        //     &colorspace::ACEScg,
-        // );
-
-        // let xf_xyz_to_p3 = xyz_to_rgb_matrix(
-        //     colorspace::ITUR_BT709.white,
-        //     &colorspace::DCI_P3,
-        // );
-
-        // let xf_xyz_to_alexawide = xyz_to_rgb_matrix(
-        //     colorspace::ITUR_BT709.white,
-        //     &colorspace::AlexaWide,
-        // );
-
-        // let xf_r709_to_acescg = rgb_to_rgb_matrix(
-        //     &colorspace::ITUR_BT709,
-        //     &colorspace::ACEScg,
-        // );
-
         let cat_d65_to_d50 = crate::chromatic_adaptation::bradford(
             illuminant::D65.xyz,
             illuminant::D50.xyz,
@@ -174,41 +126,20 @@ mod tests {
 
         for (name, ref spd) in &*babel_average::spd {
             let xyz = spd.to_xyz_with_illuminant(&illuminant::D65.spd);
+            println!("{}: {}", name, xyz);
             let rgb = xyz_to_rgb(&xf_xyz_to_rec709, xyz);
             let srgb = RGBu8::from(oetf::srgb(rgb));
             assert_eq!(srgb, babel_average::sRGB_u8[name]);
-
-            // eprintln!("\n{} ----------", name);
-            // eprintln!("XYZ       {}", xyz);
-
-            // let xyy = xyY::from_xyz( cat_d65_to_d50 * xyz);
-            // eprintln!("xyY       {:?}", xyy);
 
             let lab = crate::lab::xyz_to_lab(
                 cat_d65_to_d50 * xyz,
                 illuminant::D50.xyz,
             );
-            // eprintln!("Lab       {:?}", lab);
 
             let lab_ref = babel_average::Lab_D50[name];
-            // eprintln!("Lab ref   {:?}", lab_ref);
 
             let delta_e = delta_E(lab, lab_ref);
-            // eprintln!("delta E:  {}", delta_e);
             assert!(delta_e < 1.4);
-
-            eprintln!("{} sRGB      {}", name, rgb);
-
-            // let rgb_acescg = xyz_to_rgb(&xf_xyz_to_acescg, xyz);
-            // eprintln!("ACEScg    {}", rgb_acescg);
-            // let rgb_acescg = xf_r709_to_acescg * rgb;
-            // eprintln!("ACEScg (from709) {}", rgb_acescg);
-
-            // let rgb_p3 = xyz_to_rgb(&xf_xyz_to_p3, xyz);
-            // eprintln!("P3        {}", rgb_p3);
-
-            // let rgb_alexawide = xyz_to_rgb(&xf_xyz_to_alexawide, xyz);
-            // eprintln!("AlexaWide {}", rgb_alexawide);
         }
     }
 }

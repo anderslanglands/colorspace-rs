@@ -1,4 +1,5 @@
 pub use crate::chromaticity::xyY;
+pub use crate::cmf;
 pub use crate::color_checker::babel_average;
 pub use crate::color_space_rgb::*;
 pub use crate::illuminant;
