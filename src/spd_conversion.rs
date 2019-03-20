@@ -97,6 +97,13 @@ pub fn spd_to_xyz_with_illuminant(spd: &SPD, cmf: &CMF, illum: &SPD) -> XYZ {
     xyz / N
 }
 
+/// Convert the SPD `spd` to luminous power in lumens using the given CMF, `cmf`
+/// # Example
+/// ```
+///  use colorspace::prelude::*;
+///  let lm = spd_to_lumens(&illuminant::D65.spd, &cmf::CIE_1931_2_degree);
+///  assert_eq!(lm, 17184.416);
+/// ```
 pub fn spd_to_lumens(spd: &SPD, cmf: &CMF) -> f32 {
     let lambda_start = if spd.start() > cmf.x_bar.start() {
         spd.start()
