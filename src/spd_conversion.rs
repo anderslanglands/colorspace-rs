@@ -9,6 +9,13 @@ use super::xyz::XYZ;
 
 use lazy_static::lazy_static;
 
+/// Convert SPD `spd` to an `XYZ` colour using the colour matching functions, `cmf`
+/// # Example
+/// ```
+///  use colorspace::prelude::*;
+///  let xyz = spd_to_xyz(&illuminant::D65.spd, &cmf::CIE_1931_2_degree);
+///  assert_eq!(xyz, XYZ::new(2008.7645, 2113.4568, 2301.4922));
+/// ```
 pub fn spd_to_xyz(spd: &SPD, cmf: &CMF) -> XYZ {
     let lambda_start = if spd.start() > cmf.x_bar.start() {
         spd.start()
@@ -42,6 +49,18 @@ pub fn spd_to_xyz(spd: &SPD, cmf: &CMF) -> XYZ {
     xyz
 }
 
+/// Convert SPD `spd` to an `XYZ` colour using the colour matching functions, `cmf`
+/// and the illuminant `illum`
+/// # Example
+/// ```
+///  use colorspace::prelude::*;
+///  let xyz = spd_to_xyz_with_illuminant(
+///      &babel_average::spd["dark_skin"],
+///      &cmf::CIE_1931_2_degree,
+///      &illuminant::D65.spd,
+///  );
+///  assert_eq!(xyz, XYZ::new(0.11140782, 0.10071314, 0.068000525));
+/// ```
 pub fn spd_to_xyz_with_illuminant(spd: &SPD, cmf: &CMF, illum: &SPD) -> XYZ {
     let lambda_start = if spd.start() > cmf.x_bar.start() {
         spd.start()
@@ -114,6 +133,8 @@ pub fn spd_to_lumens(spd: &SPD, cmf: &CMF) -> f32 {
 // Smits upsampling code and data are ported from PBRT
 // pbrt source code is Copyright(c) 1998-2016
 // Matt Pharr, Greg Humphreys, and Wenzel Jakob.
+/// Convert RGB colour `rgb` to a reflectance `SPD` using Smits's method:
+/// http://www.cs.utah.edu/~bes/papers/color/
 pub fn rgb_to_spd_smits_refl(rgb: RGBf32) -> SPD {
     let mut r: SPD = RGB2SPD_REFL_WHITE
         .samples()
@@ -153,6 +174,8 @@ pub fn rgb_to_spd_smits_refl(rgb: RGBf32) -> SPD {
     r * 0.94
 }
 
+/// Convert RGB colour `rgb` to an illuminant `SPD` using Smits's method:
+/// http://www.cs.utah.edu/~bes/papers/color/
 pub fn rgb_to_spd_smits_illum(rgb: RGBf32) -> SPD {
     let mut r: SPD = RGB2SPD_ILLUM_WHITE
         .samples()
