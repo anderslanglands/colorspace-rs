@@ -46,13 +46,24 @@
 //!  colorspace is licensed under Apache License, Version 2.0
 //!  http://www.apache.org/licenses/LICENSE-2.0
 //!
-//!  This crate contains some data taken from the excellent colour-science python
+//!  This crate contains some data (specifically the standard illuminants) taken from the excellent colour-science python
 //!  library by Mansencal et al.: <https://www.colour-science.org>
-//!  Copyright (c) 2013-2018, Colour Developers
+//!  Colour by Colour Developers - 2013-2019
+//!  Copyright © 2013-2019 – Colour Developers – colour-science@googlegroups.com
+//!  This software is released under terms of New BSD License: http://opensource.org/licenses/BSD-3-Clause
+//!  http://github.com/colour-science/colour
 //!
 //!  Most of the conversion algorithms are based on those published at
 //!  Bruce Lindbloom's site: <http://www.brucelindbloom.com>
 //!  Copyright © 2001 - 2018 Bruce Justin Lindbloom.
+//!
+//!  The Smits upsampling code and associated data are taken from PBRT
+//!  Copyright (c) 1998-2015, Matt Pharr, Greg Humphreys, and Wenzel Jakob.
+//!  All rights reserved.
+//!  Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+//!  Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+//!  Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+//!  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //!
 //!  BabelColor color-checker data is copyright © 2004‐2012 Danny Pascale (www.babelcolor.com); used with permission.
 //!  <http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.xls>
