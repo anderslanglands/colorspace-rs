@@ -78,6 +78,39 @@ pub fn spd_to_xyz_with_illuminant(spd: &SPD, cmf: &CMF, illum: &SPD) -> XYZ {
     xyz / N
 }
 
+pub fn spd_to_lumens(spd: &SPD, cmf: &CMF) -> f32 {
+    let lambda_start = if spd.start() > cmf.x_bar.start() {
+        spd.start()
+    } else {
+        cmf.x_bar.start()
+    };
+    let lambda_end = if spd.end() < cmf.x_bar.end() {
+        spd.end()
+    } else {
+        cmf.x_bar.end()
+    };
+
+    let mut idx_start = 0;
+    while spd[idx_start].0 < lambda_start {
+        idx_start += 1;
+    }
+
+    let mut idx_end = 0;
+    while spd[idx_end].0 < lambda_end && idx_end < spd.num_samples() {
+        idx_end += 1;
+    }
+
+    let mut lm = 0.0f32;
+    let mut n = 0;
+    for i in idx_start..idx_end {
+        let samp = spd[i];
+        lm += samp.1 * cmf.y_bar.value_at(samp.0);
+        n += 1;
+    }
+
+    lm * 683.0f32 / (n as f32)
+}
+
 // Smits upsampling code and data are ported from PBRT
 // pbrt source code is Copyright(c) 1998-2016
 // Matt Pharr, Greg Humphreys, and Wenzel Jakob.
