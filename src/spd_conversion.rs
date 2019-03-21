@@ -2,7 +2,7 @@
 #![allow(non_snake_case)]
 
 use super::cmf::CMF;
-use super::rgb::{clamprgb, RGBf32};
+use super::rgb::RGBf32;
 use super::spd::SPD;
 use super::traits::*;
 use super::xyz::XYZ;
@@ -13,7 +13,7 @@ use lazy_static::lazy_static;
 /// # Example
 /// ```
 ///  use colorspace::prelude::*;
-///  let xyz = spd_to_xyz(&illuminant::D65.spd, &cmf::CIE_1931_2_degree);
+///  let xyz = spd_to_xyz(&illuminant::D65.spd, &cmf::CIE_1931_2_DEGREE);
 ///  assert_eq!(xyz, XYZ::new(2008.7645, 2113.4568, 2301.4922));
 /// ```
 pub fn spd_to_xyz(spd: &SPD, cmf: &CMF) -> XYZ {
@@ -55,8 +55,8 @@ pub fn spd_to_xyz(spd: &SPD, cmf: &CMF) -> XYZ {
 /// ```
 ///  use colorspace::prelude::*;
 ///  let xyz = spd_to_xyz_with_illuminant(
-///      &babel_average::spd["dark_skin"],
-///      &cmf::CIE_1931_2_degree,
+///      &babel_average::SPECTRAL["dark_skin"],
+///      &cmf::CIE_1931_2_DEGREE,
 ///      &illuminant::D65.spd,
 ///  );
 ///  assert_eq!(xyz, XYZ::new(0.11140782, 0.10071314, 0.068000525));
@@ -101,7 +101,7 @@ pub fn spd_to_xyz_with_illuminant(spd: &SPD, cmf: &CMF, illum: &SPD) -> XYZ {
 /// # Example
 /// ```
 ///  use colorspace::prelude::*;
-///  let lm = spd_to_lumens(&illuminant::D65.spd, &cmf::CIE_1931_2_degree);
+///  let lm = spd_to_lumens(&illuminant::D65.spd, &cmf::CIE_1931_2_DEGREE);
 ///  assert_eq!(lm, 17184.416);
 /// ```
 pub fn spd_to_lumens(spd: &SPD, cmf: &CMF) -> f32 {
@@ -146,7 +146,7 @@ pub fn rgb_to_spd_smits_refl(rgb: RGBf32) -> SPD {
     let mut r: SPD = RGB2SPD_REFL_WHITE
         .samples()
         .iter()
-        .map(|(l, v)| (*l, 0.0))
+        .map(|(l, _v)| (*l, 0.0))
         .collect();
 
     if rgb.r <= rgb.g && rgb.r <= rgb.b {
@@ -187,7 +187,7 @@ pub fn rgb_to_spd_smits_illum(rgb: RGBf32) -> SPD {
     let mut r: SPD = RGB2SPD_ILLUM_WHITE
         .samples()
         .iter()
-        .map(|(l, v)| (*l, 0.0))
+        .map(|(l, _v)| (*l, 0.0))
         .collect();
 
     if rgb.r <= rgb.g && rgb.r <= rgb.b {
@@ -227,10 +227,6 @@ fn test_rgb_to_spd_smits() {
     use crate::prelude::*;
 
     let xf_xyz_to_rec709 = xyz_to_rgb_matrix(ITUR_BT709.white, &ITUR_BT709);
-    let cat_d65_to_E = crate::chromatic_adaptation::bradford(
-        illuminant::D65.xyz,
-        illuminant::E.xyz,
-    );
 
     let names = vec![
         "dark_skin",
@@ -269,7 +265,7 @@ fn test_rgb_to_spd_smits() {
     let mut pixels_ups = vec![0u8; im_w * im_h * 3];
     let mut pixels_upsi = vec![0u8; im_w * im_h * 3];
     for name in names {
-        let spd = babel_average::spd.get(name).unwrap();
+        let spd = babel_average::SPECTRAL.get(name).unwrap();
         let xyz = spd.to_xyz_with_illuminant(&illuminant::D65.spd);
         let rgb = clamprgb(xyz_to_rgb(&xf_xyz_to_rec709, xyz), 0.0, 1.0);
 

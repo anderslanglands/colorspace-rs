@@ -334,7 +334,7 @@ lazy_static! {
 
     /// sRGB
     /// Data taken https://en.wikipedia.org/wiki/SRGB
-    pub static ref sRGB: ColorSpaceRGB = {
+    pub static ref SRGB: ColorSpaceRGB = {
         ColorSpaceRGB::new_with_specified_matrices(
             xyY { x: 0.64, y: 0.33, Y: 1.0 },
             xyY { x: 0.30, y: 0.60, Y: 1.0 },
@@ -448,7 +448,7 @@ lazy_static! {
 
     /// ACEScg color space. AP1 primaries.
     /// Data taken from https://en.wikipedia.org/wiki/Academy_Color_Encoding_System
-    pub static ref ACEScg: ColorSpaceRGB = {
+    pub static ref ACESCG: ColorSpaceRGB = {
         ColorSpaceRGB::new(
             xyY { x: 0.713, y: 0.293, Y: 1.0},
             xyY { x: 0.165, y: 0.830, Y: 1.0},
@@ -465,7 +465,7 @@ lazy_static! {
 
     /// Adobe RGB (1998)
     /// Data taken from https://en.wikipedia.org/wiki/Adobe_RGB_color_space
-    pub static ref Adobe: ColorSpaceRGB = {
+    pub static ref ADOBE: ColorSpaceRGB = {
         ColorSpaceRGB::new(
             xyY { x: 0.6400, y: 0.3300, Y: 1.0},
             xyY { x: 0.2100, y: 0.7100, Y: 1.0},
@@ -484,7 +484,7 @@ lazy_static! {
     /// Data taken from "Alexa LogC Curve in VFX"
     /// http://www.arri.com/?eID=registration&file_uid=18358
     /// FIXME: Implement logC here as the OETF
-    pub static ref AlexaWide: ColorSpaceRGB = {
+    pub static ref ALEXAWIDE: ColorSpaceRGB = {
         ColorSpaceRGB::new(
             xyY { x: 0.6840, y: 0.3130, Y: 1.0},
             xyY { x: 0.2210, y: 0.8480, Y: 1.0},

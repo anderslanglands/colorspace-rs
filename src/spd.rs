@@ -189,13 +189,13 @@ impl SPD {
     /// Convert this SPD to a tristimulus XYZ value using the CIE 1931 2-degree
     /// color matching functions. The SPD is assumed to be emissive.
     pub fn to_xyz(&self) -> XYZ {
-        spd_to_xyz(self, &cmf::CIE_1931_2_degree)
+        spd_to_xyz(self, &cmf::CIE_1931_2_DEGREE)
     }
 
     /// Convert this SPD to a tristimulus XYZ value using the CIE 1931 2-degree
     /// color matching functions and the given reference illuminant SPD.
     pub fn to_xyz_with_illuminant(&self, illum: &SPD) -> XYZ {
-        spd_to_xyz_with_illuminant(self, &cmf::CIE_1931_2_degree, illum)
+        spd_to_xyz_with_illuminant(self, &cmf::CIE_1931_2_DEGREE, illum)
     }
 
     /// Returns an iterator that interpolates this `SPD` over the range [`start`, `end`] with the given number of `steps`
@@ -253,10 +253,6 @@ impl SPD {
             delta,
         }
     }
-
-    /// Set the wavelength range of `self`. If the new range is longer than the
-    /// existing range, new values are extrapolated from the existing ends
-    pub fn set_range(&mut self, lambda_start: f32, lamda_end: f32) {}
 }
 
 impl Index<usize> for SPD {
@@ -535,7 +531,7 @@ impl DivAssign<f32> for SPD {
     fn div_assign(&mut self, rhs: f32) {
         self.samples
             .iter_mut()
-            .map(|(l, v)| {
+            .map(|(_l, v)| {
                 *v /= rhs;
             })
             .all(|_| true);

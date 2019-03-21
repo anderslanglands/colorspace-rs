@@ -12,7 +12,7 @@ pub struct CMF {
 
 lazy_static! {
     /// The CIE 1931 2-degree standard observer
-    pub static ref CIE_1931_2_degree: CMF = CMF {
+    pub static ref CIE_1931_2_DEGREE: CMF = CMF {
         x_bar: SPD::from_wavelength_and_value(
             &[
                 360.0, 365.0, 370.0, 375.0, 380.0, 385.0, 390.0, 395.0, 400.0,

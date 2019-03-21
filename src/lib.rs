@@ -25,20 +25,20 @@
 //!  ### Spectral to 8-bit, gamma-encoded sRGB conversion
 //!  ```rust
 //!  // Definition of the sRGB color space
-//!  use colorspace::color_space_rgb::sRGB;
+//!  use colorspace::color_space_rgb::SRGB;
 //!  // The prelude brings in common types
 //!  use colorspace::prelude::*;
 //!  // Convert the spectral data for a measured MacBeth chart swatch to XYZ
 //!  // using the CIE 1931 2-degree CMFs and a D65 illuminant
-//!  let xyz = babel_average::spd["dark_skin"]
+//!  let xyz = babel_average::SPECTRAL["dark_skin"]
 //!      .to_xyz_with_illuminant(&illuminant::D65.spd);
 //!  // Convert the XYZ value to scene-referred (i.e. linear) sRGB
-//!  let xf_xyz_to_srgb = xyz_to_rgb_matrix(sRGB.white, &sRGB);
+//!  let xf_xyz_to_srgb = xyz_to_rgb_matrix(SRGB.white, &SRGB);
 //!  let rgb = xyz_to_rgb(&xf_xyz_to_srgb, xyz);
 //!  // Convert the scene-referred sRGB value to an 8-bit, display-referred
 //!  // value by applying the opto-electrical transfer function and using RGBu8's
 //!  // From<RGBf32> impl
-//!  let rgb: RGBu8 = (sRGB.oetf)(rgb).into();
+//!  let rgb: RGBu8 = (SRGB.oetf)(rgb).into();
 //!  assert_eq!(rgb, rgbu8(115, 82, 68));
 //!  ```
 //!
@@ -85,7 +85,7 @@ mod traits;
 pub mod transform;
 pub mod xyz;
 pub use crate::color_space_rgb::{
-    sRGB, ACEScg, AlexaWide, DCI_P3, ITUR_BT2020, ITUR_BT709,
+    ACESCG, ALEXAWIDE, DCI_P3, ITUR_BT2020, ITUR_BT709, SRGB,
 };
 
 #[cfg(test)]
@@ -116,9 +116,6 @@ mod tests {
         use crate as colorspace;
         use crate::prelude::*;
 
-        let xyz = babel_average::spd["dark_skin"]
-            .to_xyz_with_illuminant(&illuminant::D65.spd);
-
         let xf_xyz_to_rec709 = xyz_to_rgb_matrix(
             colorspace::ITUR_BT709.white,
             &colorspace::ITUR_BT709,
@@ -135,19 +132,19 @@ mod tests {
             illuminant::D50.xyz,
         );
 
-        for (name, ref spd) in &*babel_average::spd {
+        for (name, ref spd) in &*babel_average::SPECTRAL {
             let xyz = spd.to_xyz_with_illuminant(&illuminant::D65.spd);
             println!("{}: {}", name, xyz);
             let rgb = xyz_to_rgb(&xf_xyz_to_rec709, xyz);
             let srgb = RGBu8::from(oetf::srgb(rgb));
-            assert_eq!(srgb, babel_average::sRGB_u8[name]);
+            assert_eq!(srgb, babel_average::SRGB_U8[name]);
 
             let lab = crate::lab::xyz_to_lab(
                 cat_d65_to_d50 * xyz,
                 illuminant::D50.xyz,
             );
 
-            let lab_ref = babel_average::Lab_D50[name];
+            let lab_ref = babel_average::LAB_D50[name];
 
             let delta_e = delta_E(lab, lab_ref);
             assert!(delta_e < 1.4);

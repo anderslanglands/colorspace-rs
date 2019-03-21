@@ -15,17 +15,17 @@ pub mod babel_average {
         /// # Examples
         /// ```
         /// use colorspace::prelude::*;
-        /// let xyz = babel_average::spd["dark_skin"].to_xyz_with_illuminant(&illuminant::D65.spd);
+        /// let xyz = babel_average::SPECTRAL["dark_skin"].to_xyz_with_illuminant(&illuminant::D65.spd);
         /// // Convert the XYZ value to scene-referred sRGB
-        /// let xf_xyz_to_srgb = xyz_to_rgb_matrix(colorspace::sRGB.white,
-        ///                                         &colorspace::sRGB);
+        /// let xf_xyz_to_srgb = xyz_to_rgb_matrix(colorspace::SRGB.white,
+        ///                                         &colorspace::SRGB);
         /// let rgb = xyz_to_rgb(&xf_xyz_to_srgb, xyz);
         /// // Convert the scene-referred sRGB value to an 8-bit, display-referred
         /// // value by applying the opto-electrical transfer function
-        /// let rgb: RGBu8 = colorspace::sRGB.encode(rgb).into();
+        /// let rgb: RGBu8 = colorspace::SRGB.encode(rgb).into();
         /// assert_eq!(rgb, rgbu8(115, 82, 68));
         /// ```
-        pub static ref spd: HashMap<&'static str, SPD> = {
+        pub static ref SPECTRAL: HashMap<&'static str, SPD> = {
             let mut hm = HashMap::new();
             hm.insert(
                 "dark_skin",
@@ -487,7 +487,7 @@ pub mod babel_average {
             hm
         };
 
-        pub static ref sRGB_u8: HashMap<&'static str, crate::rgb::RGBu8> = {
+        pub static ref SRGB_U8: HashMap<&'static str, crate::rgb::RGBu8> = {
             use crate::rgb::rgbu8;
             let mut hm = HashMap::new();
 
@@ -519,7 +519,7 @@ pub mod babel_average {
             hm
         };
 
-        pub static ref Lab_D50: HashMap<&'static str, crate::lab::Lab> = {
+        pub static ref LAB_D50: HashMap<&'static str, crate::lab::Lab> = {
             use crate::lab::lab;
             let mut hm = HashMap::new();
 
