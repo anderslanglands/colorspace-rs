@@ -6,38 +6,9 @@ use super::xyz::XYZ;
 use std::iter::FromIterator;
 use std::ops::Index;
 
-pub use crate::spd_conversion::{spd_to_xyz, spd_to_xyz_with_illuminant};
-
-/// Distribution of the spectral data. Some algorithms can be optimized if it
-/// is known that the samples are evenly distributed
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum Distribution {
-    /// The samples are evenly distributed and the contained value is the
-    /// wavelength distance between samples
-    Uniform(f32),
-    /// The samples are not evenly distributed
-    Varying,
-}
-
-fn calculate_distribution(samples: &[(f32, f32)]) -> Distribution {
-    let mut is_uniform = true;
-    let step_size = samples[1].0 - samples[0].0;
-
-    for i in 0..samples.len() {
-        if i > 0 {
-            let ss = samples[i].0 - samples[i - 1].0;
-            if ss != step_size {
-                is_uniform = false;
-            }
-        }
-    }
-
-    if is_uniform {
-        Distribution::Uniform(step_size)
-    } else {
-        Distribution::Varying
-    }
-}
+pub use crate::spd_conversion::{
+    spd_to_lumens, spd_to_xyz, spd_to_xyz_with_illuminant,
+};
 
 /// A Spectral Power Distribution. An SPD is a vector of (wavelength, value)
 /// pairs. Wavelengths are assumed to be in nanometers.
@@ -147,21 +118,37 @@ impl SPD {
 
     /// Interpolates the value for `lambda` from the SPD. If `lambda` is
     /// outside of the range of the SPD, it is clamped to lie within the range.
-    pub fn value_at_extrapolate(&self, lambda: f32) -> f32 {
+    pub fn value_at_extrapolate(
+        &self,
+        lambda: f32,
+        fill_method: FillMethod,
+    ) -> f32 {
         if lambda < self.start() {
-            let l0 = 0;
-            let l1 = 1;
-            self.samples[l1].1
-                + (lambda - self.samples[l1].0)
-                    / (self.samples[l0].0 - self.samples[l1].0)
-                    * (self.samples[l0].1 - self.samples[l1].1)
+            match fill_method {
+                FillMethod::Zero => 0.0,
+                FillMethod::Nearest => self.samples[0].1,
+                FillMethod::Linear => {
+                    let l0 = 0;
+                    let l1 = 1;
+                    self.samples[l1].1
+                        + (lambda - self.samples[l1].0)
+                            / (self.samples[l0].0 - self.samples[l1].0)
+                            * (self.samples[l0].1 - self.samples[l1].1)
+                }
+            }
         } else if lambda > self.end() {
-            let l0 = self.num_samples() - 1;
-            let l1 = self.num_samples() - 2;
-            self.samples[l1].1
-                + (lambda - self.samples[l1].0)
-                    / (self.samples[l0].0 - self.samples[l1].0)
-                    * (self.samples[l0].1 - self.samples[l1].1)
+            match fill_method {
+                FillMethod::Zero => 0.0,
+                FillMethod::Nearest => self.samples[self.samples.len() - 1].1,
+                FillMethod::Linear => {
+                    let l0 = self.num_samples() - 1;
+                    let l1 = self.num_samples() - 2;
+                    self.samples[l1].1
+                        + (lambda - self.samples[l1].0)
+                            / (self.samples[l0].0 - self.samples[l1].0)
+                            * (self.samples[l0].1 - self.samples[l1].1)
+                }
+            }
         } else {
             let t = (lambda - self.start()) / self.range();
             let i0 = (t * (self.num_samples() - 1) as f32) as i32;
@@ -198,28 +185,19 @@ impl SPD {
         spd_to_xyz_with_illuminant(self, &cmf::CIE_1931_2_DEGREE, illum)
     }
 
-    /// Returns an iterator that interpolates this `SPD` over the range [`start`, `end`] with the given number of `steps`
-    pub fn interpolate_by(
-        &self,
-        start: f32,
-        end_inc: f32,
-        steps: u32,
-    ) -> InterpolatingIterator {
-        InterpolatingIterator {
-            spd: &self,
-            current: 0,
-            steps: steps,
-            start: start,
-            range: end_inc - start,
-        }
+    /// Convert this SPD to a luminous power in lumens using the CIE 1931 2-degree
+    /// color matching functions
+    pub fn to_lumens(&self) -> f32 {
+        spd_to_lumens(self, &cmf::CIE_1931_2_DEGREE)
     }
 
     /// Returns an iterator that interpolates and extrapolates this `SPD` over the range [`start`, `end`] with the given number of `steps`
-    pub fn extrapolate_by(
+    pub fn reshape(
         &self,
         start: f32,
         end_inc: f32,
         steps: u32,
+        fill_method: FillMethod,
     ) -> ExtrapolatingIterator {
         ExtrapolatingIterator {
             spd: &self,
@@ -227,6 +205,7 @@ impl SPD {
             steps: steps,
             start: start,
             range: end_inc - start,
+            fill_method,
         }
     }
 
@@ -238,6 +217,7 @@ impl SPD {
     pub fn zip<'a, 'b>(
         &'a self,
         rhs: &'b SPD,
+        fill_method: FillMethod,
     ) -> ZippedExtrapolatingIterator<'a, 'b> {
         let start = self.start().min(rhs.start());
         let end = self.end().max(rhs.end());
@@ -251,7 +231,50 @@ impl SPD {
             steps: num_samples,
             start,
             delta,
+            fill_method,
         }
+    }
+}
+
+/// Method by which to create unspecified values when two SPDs are combined with differing ranges.
+/// `Zero` sets the unspecified values to 0.0
+/// `Nearest` takes the value from the nearest end of the specified range
+/// `Linear` linearly extrapolates a new value from the two values at the nearest end of the specified range.
+#[derive(Copy, Clone, Debug)]
+pub enum FillMethod {
+    Zero,
+    Nearest,
+    Linear,
+}
+
+/// Distribution of the spectral data. Some algorithms can be optimized if it
+/// is known that the samples are evenly distributed
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum Distribution {
+    /// The samples are evenly distributed and the contained value is the
+    /// wavelength distance between samples
+    Uniform(f32),
+    /// The samples are not evenly distributed
+    Varying,
+}
+
+fn calculate_distribution(samples: &[(f32, f32)]) -> Distribution {
+    let mut is_uniform = true;
+    let step_size = samples[1].0 - samples[0].0;
+
+    for i in 0..samples.len() {
+        if i > 0 {
+            let ss = samples[i].0 - samples[i - 1].0;
+            if ss != step_size {
+                is_uniform = false;
+            }
+        }
+    }
+
+    if is_uniform {
+        Distribution::Uniform(step_size)
+    } else {
+        Distribution::Varying
     }
 }
 
@@ -262,28 +285,6 @@ impl Index<usize> for SPD {
     }
 }
 
-pub struct InterpolatingIterator<'a> {
-    spd: &'a SPD,
-    current: u32,
-    steps: u32,
-    start: f32,
-    range: f32,
-}
-
-impl<'a> Iterator for InterpolatingIterator<'a> {
-    type Item = (f32, f32);
-    fn next(&mut self) -> Option<(f32, f32)> {
-        if self.current < self.steps {
-            let delta = (self.current as f32) / ((self.steps - 1) as f32);
-            let lambda = self.start + self.range * delta;
-            self.current += 1;
-            Some((lambda, self.spd.value_at(lambda).max(0.0)))
-        } else {
-            None
-        }
-    }
-}
-
 pub struct ZippedExtrapolatingIterator<'a, 'b> {
     spd_l: &'a SPD,
     spd_r: &'b SPD,
@@ -291,6 +292,7 @@ pub struct ZippedExtrapolatingIterator<'a, 'b> {
     steps: u32,
     start: f32,
     delta: f32,
+    fill_method: FillMethod,
 }
 
 impl<'a, 'b> Iterator for ZippedExtrapolatingIterator<'a, 'b> {
@@ -301,8 +303,12 @@ impl<'a, 'b> Iterator for ZippedExtrapolatingIterator<'a, 'b> {
             self.current += 1;
             Some((
                 lambda,
-                self.spd_l.value_at_extrapolate(lambda).max(0.0),
-                self.spd_r.value_at_extrapolate(lambda).max(0.0),
+                self.spd_l
+                    .value_at_extrapolate(lambda, self.fill_method)
+                    .max(0.0),
+                self.spd_r
+                    .value_at_extrapolate(lambda, self.fill_method)
+                    .max(0.0),
             ))
         } else {
             None
@@ -310,12 +316,14 @@ impl<'a, 'b> Iterator for ZippedExtrapolatingIterator<'a, 'b> {
     }
 }
 
+/// Iterator that interpolates and extrapolates a new SPD from the given shape parameters
 pub struct ExtrapolatingIterator<'a> {
     spd: &'a SPD,
     current: u32,
     steps: u32,
     start: f32,
     range: f32,
+    fill_method: FillMethod,
 }
 
 impl<'a> Iterator for ExtrapolatingIterator<'a> {
@@ -325,7 +333,12 @@ impl<'a> Iterator for ExtrapolatingIterator<'a> {
             let delta = (self.current as f32) / ((self.steps - 1) as f32);
             let lambda = self.start + self.range * delta;
             self.current += 1;
-            Some((lambda, self.spd.value_at_extrapolate(lambda).max(0.0)))
+            Some((
+                lambda,
+                self.spd
+                    .value_at_extrapolate(lambda, self.fill_method)
+                    .max(0.0),
+            ))
         } else {
             None
         }
@@ -350,7 +363,9 @@ impl Add for SPD {
     type Output = SPD;
 
     fn add(self, rhs: SPD) -> SPD {
-        self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l + v_r)).collect()
+        self.zip(&rhs, FillMethod::Nearest)
+            .map(|(l, v_l, v_r)| (l, v_l + v_r))
+            .collect()
     }
 }
 
@@ -358,7 +373,9 @@ impl Mul for SPD {
     type Output = SPD;
 
     fn mul(self, rhs: SPD) -> SPD {
-        self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l * v_r)).collect()
+        self.zip(&rhs, FillMethod::Nearest)
+            .map(|(l, v_l, v_r)| (l, v_l * v_r))
+            .collect()
     }
 }
 
@@ -366,7 +383,9 @@ impl Sub for SPD {
     type Output = SPD;
 
     fn sub(self, rhs: SPD) -> SPD {
-        self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l - v_r)).collect()
+        self.zip(&rhs, FillMethod::Nearest)
+            .map(|(l, v_l, v_r)| (l, v_l - v_r))
+            .collect()
     }
 }
 
@@ -374,7 +393,9 @@ impl Div for SPD {
     type Output = SPD;
 
     fn div(self, rhs: SPD) -> SPD {
-        self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l / v_r)).collect()
+        self.zip(&rhs, FillMethod::Nearest)
+            .map(|(l, v_l, v_r)| (l, v_l / v_r))
+            .collect()
     }
 }
 
@@ -472,25 +493,37 @@ impl Div<SPD> for f32 {
 
 impl AddAssign for SPD {
     fn add_assign(&mut self, rhs: SPD) {
-        *self = self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l + v_r)).collect();
+        *self = self
+            .zip(&rhs, FillMethod::Nearest)
+            .map(|(l, v_l, v_r)| (l, v_l + v_r))
+            .collect();
     }
 }
 
 impl MulAssign for SPD {
     fn mul_assign(&mut self, rhs: SPD) {
-        *self = self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l * v_r)).collect();
+        *self = self
+            .zip(&rhs, FillMethod::Nearest)
+            .map(|(l, v_l, v_r)| (l, v_l * v_r))
+            .collect();
     }
 }
 
 impl SubAssign for SPD {
     fn sub_assign(&mut self, rhs: SPD) {
-        *self = self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l - v_r)).collect();
+        *self = self
+            .zip(&rhs, FillMethod::Nearest)
+            .map(|(l, v_l, v_r)| (l, v_l - v_r))
+            .collect();
     }
 }
 
 impl DivAssign for SPD {
     fn div_assign(&mut self, rhs: SPD) {
-        *self = self.zip(&rhs).map(|(l, v_l, v_r)| (l, v_l / v_r)).collect();
+        *self = self
+            .zip(&rhs, FillMethod::Nearest)
+            .map(|(l, v_l, v_r)| (l, v_l / v_r))
+            .collect();
     }
 }
 
@@ -543,7 +576,7 @@ fn test_interpolation() {
     let spd =
         SPD::new(&[(400.0, 0.5), (500.0, 1.0), (600.0, 1.0), (700.0, 0.5)]);
 
-    let i1: SPD = spd.interpolate_by(300.0, 800.0, 6).collect();
+    let i1: SPD = spd.reshape(300.0, 800.0, 6, FillMethod::Nearest).collect();
     assert_eq!(
         i1,
         SPD::new(&[
@@ -556,7 +589,7 @@ fn test_interpolation() {
         ])
     );
 
-    let i2: SPD = spd.extrapolate_by(300.0, 800.0, 6).collect();
+    let i2: SPD = spd.reshape(300.0, 800.0, 6, FillMethod::Zero).collect();
     assert_eq!(
         i2,
         SPD::new(&[
