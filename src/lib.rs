@@ -6,7 +6,7 @@
 //!  convert between spectral, XYZ, L'a'b' and RGB spaces of various flavors such as
 //!  sRGB, ACES, DCI P3 and ALEXA Wide Gamut then this is the crate for you.
 
-//!  Note that currently the results are not as accurate as they could be, due
+//!  Note that currently the spectral->XYZ results are not as accurate as they could be, due
 //!  to the spectral->XYZ conversion not being implemented according to spec,
 //!  but the results should be "good enough" for casual visual inspection. Be
 //!  aware that future versions of the library will change some decimal places
@@ -40,6 +40,42 @@
 //!  // From<RGBf32> impl
 //!  let rgb: RGBu8 = (SRGB.oetf)(rgb).into();
 //!  assert_eq!(rgb, rgbu8(115, 82, 68));
+//!  ```
+//!
+//! ### RGB to spectral
+//!  ```rust
+//!// Use Smits' spectral uplifting to convert each swatch of the Macbeth chart
+//!// to a spectral reflectivity, then convert back to XYZ and check that the
+//!// result is within tolerance using delta_E in L'a'b' space.
+//! use colorspace::prelude::*;
+//!// We create the matrix for the RGB->XYZ transform up front, in case we
+//!// want to convert many colors
+//!let xf_rec709_to_xyz = rgb_to_xyz_matrix(ITUR_BT709.white, &ITUR_BT709);
+//!// We use the Bradford CAT to convert from sRGB D65 to D50 for the Lab
+//!// comparison (by convention)
+//!let cat_d65_to_d50 = crate::chromatic_adaptation::bradford(
+//!    illuminant::D65.xyz,
+//!    illuminant::D50.xyz,
+//!);
+//!// color_checker::babel_average supplies sRGB u8 versions for convenience
+//!for (_name, srgbu8) in babel_average::SRGB_U8.iter() {
+//!    // Convert to a scene-referred float RGB value using the EOTF
+//!    let rgb = eotf::srgb(RGBf32::from(*srgbu8));
+//!    // Upsample the RGB value to an SPD
+//!    let ups_spd = rgb_to_spd_smits_refl(rgb);
+//!    // Convert the SPD to XYZ
+//!    let ups_xyz = ups_spd.to_xyz_with_illuminant(&illuminant::D65.spd);
+//!    // check delta_E is within tolerance after our round trip
+//!    // first convert to XYZ, then to Lab
+//!    let xyz = rgb_to_xyz(&xf_rec709_to_xyz, rgb);
+//!    let orig_lab =
+//!        crate::lab::xyz_to_lab(cat_d65_to_d50 * xyz, illuminant::D50.xyz);
+//!    let ups_lab = crate::lab::xyz_to_lab(
+//!        cat_d65_to_d50 * ups_xyz,
+//!        illuminant::D50.xyz,
+//!    );
+//!    assert!(delta_E(orig_lab, ups_lab) < 1.39f32);
+//!}
 //!  ```
 //!
 //!  ## Licence
@@ -134,7 +170,6 @@ mod tests {
 
         for (name, ref spd) in &*babel_average::SPECTRAL {
             let xyz = spd.to_xyz_with_illuminant(&illuminant::D65.spd);
-            println!("{}: {}", name, xyz);
             let rgb = xyz_to_rgb(&xf_xyz_to_rec709, xyz);
             let srgb = RGBu8::from(oetf::srgb(rgb));
             assert_eq!(srgb, babel_average::SRGB_U8[name]);

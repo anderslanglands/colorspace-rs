@@ -4,6 +4,7 @@
 use super::math::*;
 use super::xyz::*;
 
+/// Lab colour value
 #[repr(C, packed)]
 #[derive(Copy, Clone, Debug)]
 #[allow(non_snake_case)]
@@ -13,11 +14,16 @@ pub struct Lab {
     pub b: f32,
 }
 
+/// Short constructor for a Lab
 #[allow(non_snake_case)]
 pub fn lab(L: f32, a: f32, b: f32) -> Lab {
     Lab { L, a, b }
 }
 
+/// Convert an XYZ color to a Lab colour with the given reference white.
+/// Lab colours are normally specified realtive to D50, so if your XYZ is
+/// relative to something else, you might want to convert it first using the
+/// chromatic_adaptation module.
 pub fn xyz_to_lab(xyz: XYZ, ref_white: XYZ) -> Lab {
     let xyz_r = xyz / ref_white;
 
@@ -74,21 +80,14 @@ pub fn delta_E_2000(c1: Lab, c2: Lab) -> f32 {
     let C_bar_ab = (C_1_ab + C_2_ab) / 2.0;
     let G = 0.5
         * (1.0 - sqrt(C_bar_ab.powi(7) / (C_bar_ab.powi(7) + 25.0f32.powi(7))));
-    // println!("G: {}", G);
     let a_p_1 = (1.0 + G) * a_1;
-    // println!("a_p_1: {}", a_p_1);
     let a_p_2 = (1.0 + G) * a_2;
-    // println!("a_p_2: {}", a_p_2);
     let C_p_1 = hypot(a_p_1, b_1);
-    // println!("C_p_1: {}", C_p_1);
     let C_p_2 = hypot(a_p_2, b_2);
-    // println!("C_p_2: {}", C_p_2);
     let h_p_1 = atan2(b_1, a_p_1).to_degrees();
     let h_p_1 = if h_p_1 < 0.0 { h_p_1 + 360.0 } else { h_p_1 };
-    // println!("h_p_1: {}", h_p_1);
     let h_p_2 = atan2(b_2, a_p_2).to_degrees();
     let h_p_2 = if h_p_2 < 0.0 { h_p_2 + 360.0 } else { h_p_2 };
-    // println!("h_p_2: {}", h_p_2);
 
     // Step 2 - Calculate ΔL′, ΔC′, ΔH′
     let delta_L_p = L_2 - L_1;
@@ -96,14 +95,12 @@ pub fn delta_E_2000(c1: Lab, c2: Lab) -> f32 {
     let delta_h_p = h_p_2 - h_p_1;
     let delta_h_p = if C_p_1 * C_p_2 == 0.0 {
         0.0
+    } else if abs(delta_h_p) <= 180.0 {
+        delta_h_p
+    } else if delta_h_p > 180.0 {
+        delta_h_p - 360.0
     } else {
-        if abs(delta_h_p) <= 180.0 {
-            delta_h_p
-        } else if delta_h_p > 180.0 {
-            delta_h_p - 360.0
-        } else {
-            delta_h_p + 360.0
-        }
+        delta_h_p + 360.0
     };
     let delta_H_p =
         2.0 * sqrt(C_p_1 * C_p_2) * sin((delta_h_p / 2.0).to_radians());
@@ -115,22 +112,18 @@ pub fn delta_E_2000(c1: Lab, c2: Lab) -> f32 {
     let h_1_m_h_2 = abs(h_p_1 - h_p_2);
     let h_bar_p = if C_p_1 * C_p_2 == 0.0 {
         h_p_1 + h_p_2
+    } else if h_1_m_h_2 <= 180.0 {
+        (h_p_1 + h_p_2) / 2.0
+    } else if (h_p_1 + h_p_2) < 360.0 {
+        (h_p_1 + h_p_2 + 360.0) / 2.0
     } else {
-        if h_1_m_h_2 <= 180.0 {
-            (h_p_1 + h_p_2) / 2.0
-        } else if (h_p_1 + h_p_2) < 360.0 {
-            (h_p_1 + h_p_2 + 360.0) / 2.0
-        } else {
-            (h_p_1 + h_p_2 - 360.0) / 2.0
-        }
+        (h_p_1 + h_p_2 - 360.0) / 2.0
     };
-    // println!("h_bar_p: {}", h_bar_p);
 
     let T = 1.0 - 0.17 * cos((h_bar_p - 30.0).to_radians())
         + 0.24 * cos((2.0 * h_bar_p).to_radians())
         + 0.32 * cos((3.0 * h_bar_p + 6.0).to_radians())
         - 0.20 * cos((4.0 * h_bar_p - 63.0).to_radians());
-    // println!("T: {}", T);
 
     let delta_theta = 30.0 * exp(-sqr((h_bar_p - 275.0) / 25.0));
 

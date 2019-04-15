@@ -102,7 +102,7 @@ where
 {
     type Output = T;
 
-    fn index<'a>(&'a self, i: usize) -> &'a T {
+    fn index(&self, i: usize) -> &T {
         match i {
             0 => &self.r,
             1 => &self.g,
@@ -116,7 +116,7 @@ impl<T> IndexMut<usize> for RGBf<T>
 where
     T: Scalar,
 {
-    fn index_mut<'a>(&'a mut self, i: usize) -> &'a mut T {
+    fn index_mut(&mut self, i: usize) -> &mut T {
         match i {
             0 => &mut self.r,
             1 => &mut self.g,
@@ -478,9 +478,9 @@ impl From<RGBf32> for RGBu16 {
 impl From<RGBu8> for RGBf32 {
     fn from(c: RGBu8) -> RGBf32 {
         RGBf32 {
-            r: c.r as f32 / 255.0,
-            g: c.g as f32 / 255.0,
-            b: c.b as f32 / 255.0,
+            r: f32::from(c.r) / 255.0,
+            g: f32::from(c.g) / 255.0,
+            b: f32::from(c.b) / 255.0,
         }
     }
 }
@@ -488,9 +488,9 @@ impl From<RGBu8> for RGBf32 {
 impl From<RGBu16> for RGBf32 {
     fn from(c: RGBu16) -> RGBf32 {
         RGBf32 {
-            r: c.r as f32 / 65535.0,
-            g: c.g as f32 / 65535.0,
-            b: c.b as f32 / 65535.0,
+            r: f32::from(c.r) / 65535.0,
+            g: f32::from(c.g) / 65535.0,
+            b: f32::from(c.b) / 65535.0,
         }
     }
 }

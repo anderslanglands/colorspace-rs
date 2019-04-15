@@ -53,7 +53,7 @@ impl SPD {
             samples.push((w[i], p[i]));
             if i > 0 {
                 let ss = w[i] - w[i - 1];
-                if ss != step_size {
+                if (ss - step_size).abs() > std::f32::EPSILON {
                     is_uniform = false;
                 }
             }
@@ -108,7 +108,7 @@ impl SPD {
         let s0 = self.samples[i0];
         let s1 = self.samples[i1];
 
-        if s0.0 == s1.0 {
+        if (s0.0 - s1.0).abs() < std::f32::EPSILON {
             s0.1
         } else {
             let dt = clamp((lambda - s0.0) / (s1.0 - s0.0), 0.0, 1.0);
@@ -159,7 +159,7 @@ impl SPD {
             let s0 = self.samples[i0];
             let s1 = self.samples[i1];
 
-            if s0.0 == s1.0 {
+            if (s0.0 - s1.0).abs() < std::f32::EPSILON {
                 s0.1
             } else {
                 let dt = clamp((lambda - s0.0) / (s1.0 - s0.0), 0.0, 1.0);
@@ -202,8 +202,8 @@ impl SPD {
         ExtrapolatingIterator {
             spd: &self,
             current: 0,
-            steps: steps,
-            start: start,
+            steps,
+            start,
             range: end_inc - start,
             fill_method,
         }
@@ -265,7 +265,7 @@ fn calculate_distribution(samples: &[(f32, f32)]) -> Distribution {
     for i in 0..samples.len() {
         if i > 0 {
             let ss = samples[i].0 - samples[i - 1].0;
-            if ss != step_size {
+            if (ss - step_size).abs() > std::f32::EPSILON {
                 is_uniform = false;
             }
         }

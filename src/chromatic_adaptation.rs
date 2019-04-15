@@ -1,7 +1,13 @@
 #![allow(non_snake_case)]
+#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 use super::math::*;
 use super::xyz::*;
 
+/// Compute the Bradford chromatic adaptation transform matrix.
+/// XYZ colors are specified relative to a reference illuminant. The
+/// chromatic adaptation transform allows to adapt from one illuminant
+/// to another.
+/// See http://www.brucelindbloom.com for more information.
 pub fn bradford(wp_src: XYZ, wp_dst: XYZ) -> Matrix33 {
     if wp_src == wp_dst {
         return Matrix33::make_identity();

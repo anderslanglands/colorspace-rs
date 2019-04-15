@@ -29,10 +29,10 @@ pub fn equal_with_abs_error(x: f32, y: f32, e: f32) -> bool {
 }
 
 /// Returns true if x and y are equal with a relative error of e
-pub fn equal_with_rel_error(x: f32, y: f32, e: f32) -> bool {
+pub fn equal_with_rel_error(x: f32, y: f32, err: f32) -> bool {
     let a = if x > y { x - y } else { y - x };
     let b = if x > 0.0 { x } else { -x };
-    a <= e * b
+    a <= err * b
 }
 
 #[inline(always)]
@@ -177,6 +177,7 @@ impl Matrix33 {
             let mut pivot = i;
             let mut pivot_size: f32 = self[i][i].abs();
 
+            #[allow(clippy::needless_range_loop)]
             for j in (i + 1)..3 {
                 let tmp = self[j][i].abs();
                 if tmp > pivot_size {
@@ -191,6 +192,7 @@ impl Matrix33 {
             }
 
             if pivot != i {
+                #[allow(clippy::manual_swap)]
                 for j in 0..3 {
                     let tmp1 = mtx_t[i][j];
                     mtx_t[i][j] = mtx_t[pivot][j];
@@ -205,8 +207,8 @@ impl Matrix33 {
             for j in (i + 1)..3 {
                 let f = mtx_t[j][i] / mtx_t[i][i];
                 for k in 0..3 {
-                    mtx_t[j][k] = mtx_t[j][k] - (f * mtx_t[i][k]);
-                    mtx_s[j][k] = mtx_s[j][k] - (f * mtx_s[i][k]);
+                    mtx_t[j][k] -= f * mtx_t[i][k];
+                    mtx_s[j][k] -= f * mtx_s[i][k];
                 }
             }
         }
@@ -220,15 +222,15 @@ impl Matrix33 {
             }
 
             for j in 0..3 {
-                mtx_t[i][j] = mtx_t[i][j] / f;
-                mtx_s[i][j] = mtx_s[i][j] / f;
+                mtx_t[i][j] /= f;
+                mtx_s[i][j] /= f;
             }
 
             for j in 0..i {
                 let f = mtx_t[j][i];
                 for k in 0..3 {
-                    mtx_t[j][k] = mtx_t[j][k] - (f * mtx_t[i][k]);
-                    mtx_s[j][k] = mtx_s[j][k] - (f * mtx_s[i][k]);
+                    mtx_t[j][k] -= f * mtx_t[i][k];
+                    mtx_s[j][k] -= f * mtx_s[i][k];
                 }
             }
         }
@@ -238,7 +240,10 @@ impl Matrix33 {
 
     /// Matrix inverse
     pub fn inverse(self) -> Option<Matrix33> {
-        if self[0][2] != 0.0 || self[1][2] != 0.0 || self[2][2] != 1.0 {
+        if self[0][2] > std::f32::EPSILON
+            || self[1][2] > std::f32::EPSILON
+            || (self[2][2] - 1.0).abs() > std::f32::EPSILON
+        {
             let mut mtx_s = Matrix33::new([
                 self[1][1] * self[2][2] - self[2][1] * self[1][2],
                 self[2][1] * self[0][2] - self[0][1] * self[2][2],
@@ -257,20 +262,20 @@ impl Matrix33 {
 
             if r.abs() >= 1.0 {
                 for s in mtx_s.x.iter_mut() {
-                    *s = *s / r;
+                    *s /= r;
                 }
             } else {
                 let mr = r.abs() / std::f32::MIN_POSITIVE;
                 for s in mtx_s.x.iter_mut() {
                     if mr > s.abs() {
-                        *s = *s / r;
+                        *s /= r;
                     } else {
                         return None;
                     }
                 }
             }
 
-            return Some(mtx_s);
+            Some(mtx_s)
         } else {
             let mut mtx_s = Matrix33::new([
                 self[1][1],
@@ -288,13 +293,13 @@ impl Matrix33 {
 
             if r.abs() >= 1.0 {
                 for s in mtx_s.x.iter_mut() {
-                    *s = *s / r;
+                    *s /= r;
                 }
             } else {
                 let mr = r.abs() / std::f32::MIN_POSITIVE;
                 for s in mtx_s.x.iter_mut() {
                     if mr > s.abs() {
-                        *s = *s / r;
+                        *s /= r;
                     } else {
                         return None;
                     }
@@ -304,7 +309,7 @@ impl Matrix33 {
             mtx_s[2][0] = -self[2][0] * mtx_s[0][0] - self[2][1] * mtx_s[1][0];
             mtx_s[2][1] = -self[2][0] * mtx_s[0][1] - self[2][1] * mtx_s[1][1];
 
-            return Some(mtx_s);
+            Some(mtx_s)
         }
     }
 }
@@ -334,10 +339,11 @@ impl Mul for Matrix33 {
 
     fn mul(self, rhs: Self) -> Self {
         let mut m = Matrix33::new([0.0; 9]);
+        #[allow(clippy::needless_range_loop)]
         for i in 0..3 {
             for j in 0..3 {
                 for k in 0..3 {
-                    m[i][j] = m[i][j] + self[i][k] * rhs[k][j];
+                    m[i][j] += self[i][k] * rhs[k][j];
                 }
             }
         }

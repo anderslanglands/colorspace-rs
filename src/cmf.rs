@@ -1,5 +1,6 @@
 //! Defines color matching functions. Currently only CIE 1931 2-degree
 //! standard observer
+#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 use super::spd::SPD;
 use lazy_static::lazy_static;
 

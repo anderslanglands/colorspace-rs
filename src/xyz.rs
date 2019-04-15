@@ -99,7 +99,7 @@ impl Bounded for XYZ {
 impl Index<usize> for XYZ {
     type Output = f32;
 
-    fn index<'a>(&'a self, i: usize) -> &'a f32 {
+    fn index(&self, i: usize) -> &f32 {
         match i {
             0 => &self.x,
             1 => &self.y,
@@ -110,7 +110,7 @@ impl Index<usize> for XYZ {
 }
 
 impl IndexMut<usize> for XYZ {
-    fn index_mut<'a>(&'a mut self, i: usize) -> &'a mut f32 {
+    fn index_mut(&mut self, i: usize) -> &mut f32 {
         match i {
             0 => &mut self.x,
             1 => &mut self.y,

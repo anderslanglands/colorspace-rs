@@ -1,4 +1,5 @@
 //! Defining RGB color spaces from primaries, whitepoint and OETF
+#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 use super::chromaticity::xyY;
 use super::math::Matrix33;
 use super::rgb::RGBf32;
@@ -238,6 +239,7 @@ impl ColorSpaceRGB {
     ///     Box::new(eotf::srgb),
     /// );
     /// ```
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_specified_matrices(
         red: xyY,
         green: xyY,

@@ -1,5 +1,6 @@
 //! Explicit conversion to and from SPDs
 #![allow(non_snake_case)]
+#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
 use super::cmf::CMF;
 use super::rgb::RGBf32;
@@ -39,8 +40,7 @@ pub fn spd_to_xyz(spd: &SPD, cmf: &CMF) -> XYZ {
     }
 
     let mut xyz = XYZ::zero();
-    for i in idx_start..idx_end {
-        let samp = spd[i];
+    for samp in spd.samples().iter().take(idx_end).skip(idx_start) {
         xyz.x += samp.1 * cmf.x_bar.value_at(samp.0);
         xyz.y += samp.1 * cmf.y_bar.value_at(samp.0);
         xyz.z += samp.1 * cmf.z_bar.value_at(samp.0);
@@ -85,8 +85,7 @@ pub fn spd_to_xyz_with_illuminant(spd: &SPD, cmf: &CMF, illum: &SPD) -> XYZ {
 
     let mut xyz = XYZ::zero();
     let mut N = 0.0_f32;
-    for i in idx_start..idx_end {
-        let samp = spd[i];
+    for samp in spd.samples().iter().take(idx_end).skip(idx_start) {
         let M_e = samp.1 * illum.value_at(samp.0);
         xyz.x += cmf.x_bar.value_at(samp.0) * M_e;
         xyz.y += cmf.y_bar.value_at(samp.0) * M_e;
@@ -128,8 +127,7 @@ pub fn spd_to_lumens(spd: &SPD, cmf: &CMF) -> f32 {
 
     let mut lm = 0.0f32;
     let mut n = 0;
-    for i in idx_start..idx_end {
-        let samp = spd[i];
+    for samp in spd.samples().iter().take(idx_end).skip(idx_start) {
         lm += samp.1 * cmf.y_bar.value_at(samp.0);
         n += 1;
     }
@@ -228,6 +226,11 @@ fn test_rgb_to_spd_smits() {
 
     let xf_xyz_to_rec709 = xyz_to_rgb_matrix(ITUR_BT709.white, &ITUR_BT709);
 
+    let cat_d65_to_d50 = crate::chromatic_adaptation::bradford(
+        illuminant::D65.xyz,
+        illuminant::D50.xyz,
+    );
+
     let names = vec![
         "dark_skin",
         "light_skin",
@@ -263,7 +266,6 @@ fn test_rgb_to_spd_smits() {
     let im_h = 4 * patch_h;
     let mut pixels_orig = vec![0u8; im_w * im_h * 3];
     let mut pixels_ups = vec![0u8; im_w * im_h * 3];
-    let mut pixels_upsi = vec![0u8; im_w * im_h * 3];
     for name in names {
         let spd = babel_average::SPECTRAL.get(name).unwrap();
         let xyz = spd.to_xyz_with_illuminant(&illuminant::D65.spd);
@@ -294,56 +296,83 @@ fn test_rgb_to_spd_smits() {
                 pixels_ups[i + 2] = srgb_u8.b;
             }
         }
-        // println!("{}: {} -> {}", name, rgb, ups_rgb);
 
-        let ups_spd = rgb_to_spd_smits_illum(rgb);
-        let ups_xyz = ups_spd.to_xyz_with_illuminant(&illuminant::E.spd);
-        let ups_rgb = xyz_to_rgb(&xf_xyz_to_rec709, ups_xyz);
+        // check delta_E is within tolerance
+        let orig_lab =
+            crate::lab::xyz_to_lab(cat_d65_to_d50 * xyz, illuminant::D50.xyz);
 
-        let srgb_u8 = RGBu8::from(oetf::srgb(ups_rgb));
+        let ups_lab = crate::lab::xyz_to_lab(
+            cat_d65_to_d50 * ups_xyz,
+            illuminant::D50.xyz,
+        );
 
-        for y in row * patch_h..row * patch_h + 50 {
-            for x in col * patch_w..col * patch_w + 50 {
-                let i = (y * im_w + x) * 3;
-                pixels_upsi[i + 0] = srgb_u8.r;
-                pixels_upsi[i + 1] = srgb_u8.g;
-                pixels_upsi[i + 2] = srgb_u8.b;
-            }
-        }
+        let delta_E = delta_E(orig_lab, ups_lab);
+        assert!(delta_E < 1.83f32);
 
-        col += 1;
         if col == 6 {
             col = 0;
             row += 1;
         }
     }
 
-    image::save_buffer(
-        "orig.png",
-        pixels_orig.as_slice(),
-        im_w as u32,
-        im_h as u32,
-        image::ColorType::RGB(8),
-    )
-    .unwrap();
+    /*
+        image::save_buffer(
+            "orig.png",
+            pixels_orig.as_slice(),
+            im_w as u32,
+            im_h as u32,
+            image::ColorType::RGB(8),
+        )
+        .unwrap();
 
-    image::save_buffer(
-        "ups.png",
-        pixels_ups.as_slice(),
-        im_w as u32,
-        im_h as u32,
-        image::ColorType::RGB(8),
-    )
-    .unwrap();
+        image::save_buffer(
+            "ups.png",
+            pixels_ups.as_slice(),
+            im_w as u32,
+            im_h as u32,
+            image::ColorType::RGB(8),
+        )
+        .unwrap();
+    */
+}
 
-    image::save_buffer(
-        "upsi.png",
-        pixels_upsi.as_slice(),
-        im_w as u32,
-        im_h as u32,
-        image::ColorType::RGB(8),
-    )
-    .unwrap();
+#[test]
+fn rgb_to_spd_smits2() {
+    use crate::prelude::*;
+
+    // We create the matrix for the RGB->XYZ transform up front, in case we
+    // want to convert many colors
+    let xf_rec709_to_xyz = rgb_to_xyz_matrix(ITUR_BT709.white, &ITUR_BT709);
+
+    // We use the Bradford CAT to convert from sRGB D65 to D50 for the Lab
+    // comparison (by convention)
+    let cat_d65_to_d50 = crate::chromatic_adaptation::bradford(
+        illuminant::D65.xyz,
+        illuminant::D50.xyz,
+    );
+
+    // color_checker::babel_average supplies sRGB u8 versions for convenience
+    for (_name, srgbu8) in babel_average::SRGB_U8.iter() {
+        // Convert to a scene-referred float RGB value using the EOTF
+        let rgb = eotf::srgb(RGBf32::from(*srgbu8));
+
+        // Upsample the RGB value to an SPD
+        let ups_spd = rgb_to_spd_smits_refl(rgb);
+        // Convert the SPD to XYZ
+        let ups_xyz = ups_spd.to_xyz_with_illuminant(&illuminant::D65.spd);
+
+        // check delta_E is within tolerance after our round trip
+        // first convert to XYZ, then to Lab
+        let xyz = rgb_to_xyz(&xf_rec709_to_xyz, rgb);
+        let orig_lab =
+            crate::lab::xyz_to_lab(cat_d65_to_d50 * xyz, illuminant::D50.xyz);
+        let ups_lab = crate::lab::xyz_to_lab(
+            cat_d65_to_d50 * ups_xyz,
+            illuminant::D50.xyz,
+        );
+
+        assert!(delta_E(orig_lab, ups_lab) < 1.39f32);
+    }
 }
 
 lazy_static! {

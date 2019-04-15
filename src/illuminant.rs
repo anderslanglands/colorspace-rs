@@ -2,6 +2,7 @@
 //!
 //! Data taken from https://www.colour-science.org/
 //! Copyright (c) 2013-2018, Colour Developers
+#![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 
 use super::spd::SPD;
 use super::xyz::XYZ;

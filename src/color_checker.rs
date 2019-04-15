@@ -217,6 +217,7 @@ pub mod babel_average {
                     ],
                 ),
             );
+            #[allow(clippy::approx_constant)]
             hm.insert(
                 "yellow_green",
                 SPD::from_wavelength_and_value(
