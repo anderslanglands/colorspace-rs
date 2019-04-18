@@ -371,7 +371,8 @@ fn rgb_to_spd_smits2() {
             illuminant::D50.xyz,
         );
 
-        assert!(delta_E(orig_lab, ups_lab) < 1.39f32);
+        let dE = delta_E(orig_lab, ups_lab);
+        assert!(dE < 1.424f32);
     }
 }
 

@@ -53,7 +53,7 @@
 //!let xf_rec709_to_xyz = rgb_to_xyz_matrix(ITUR_BT709.white, &ITUR_BT709);
 //!// We use the Bradford CAT to convert from sRGB D65 to D50 for the Lab
 //!// comparison (by convention)
-//!let cat_d65_to_d50 = crate::chromatic_adaptation::bradford(
+//!let cat_d65_to_d50 = colorspace::chromatic_adaptation::bradford(
 //!    illuminant::D65.xyz,
 //!    illuminant::D50.xyz,
 //!);
@@ -69,12 +69,12 @@
 //!    // first convert to XYZ, then to Lab
 //!    let xyz = rgb_to_xyz(&xf_rec709_to_xyz, rgb);
 //!    let orig_lab =
-//!        crate::lab::xyz_to_lab(cat_d65_to_d50 * xyz, illuminant::D50.xyz);
-//!    let ups_lab = crate::lab::xyz_to_lab(
+//!        colorspace::lab::xyz_to_lab(cat_d65_to_d50 * xyz, illuminant::D50.xyz);
+//!    let ups_lab = colorspace::lab::xyz_to_lab(
 //!        cat_d65_to_d50 * ups_xyz,
 //!        illuminant::D50.xyz,
 //!    );
-//!    assert!(delta_E(orig_lab, ups_lab) < 1.39f32);
+//!    assert!(delta_E(orig_lab, ups_lab) < 1.424f32);
 //!}
 //!  ```
 //!
