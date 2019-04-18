@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.com/anderslanglands/colorspace-rs.svg?branch=master)](https://travis-ci.com/anderslanglands/colorspace-rs)
+
 # colorspace
 
  A crate for colorimetry in Rust.
