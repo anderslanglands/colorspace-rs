@@ -5,7 +5,7 @@ use super::math::*;
 use super::traits::*;
 use std::convert::From;
 use std::fmt;
-use std::ops::{Index, IndexMut};
+use std::ops::{AddAssign, Index, IndexMut};
 
 /// XYZ color type
 #[repr(C)]
@@ -132,6 +132,16 @@ impl Add for XYZ {
 
     fn add(self, rhs: XYZ) -> XYZ {
         XYZ {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
+    }
+}
+
+impl AddAssign for XYZ {
+    fn add_assign(&mut self, rhs: XYZ) {
+        *self = XYZ {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
             z: self.z + rhs.z,

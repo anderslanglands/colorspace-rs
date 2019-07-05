@@ -155,7 +155,7 @@ pub mod eotf {
     }
 
 }
-pub type TransferFunction = Box<Fn(RGBf32) -> RGBf32 + Sync>;
+pub type TransferFunction = Box<Fn(RGBf32) -> RGBf32 + Sync + Send>;
 
 /// Defines a tristimulus RGB color space as a collection of primaries, a
 /// whitepoint and OETF.

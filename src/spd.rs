@@ -71,6 +71,24 @@ impl SPD {
         }
     }
 
+    /// Initialize from a list of values and a start and end wavelength
+    /// It is assumed that 'end' is one step past the end of the array
+    pub fn from_range_and_values(start: f32, end: f32, value: &[f32]) -> SPD {
+        let range = end - start;
+        let step = range / value.len() as f32;
+
+        let samples: Vec<(f32, f32)> = value
+            .into_iter()
+            .enumerate()
+            .map(|(i, v)| (start + i as f32 * step, *v))
+            .collect();
+
+        SPD {
+            samples,
+            distribution: Distribution::Uniform(step),
+        }
+    }
+
     /// The smallest wavelength of the range covered by this SPD
     pub fn start(&self) -> f32 {
         self.samples.first().unwrap().0
