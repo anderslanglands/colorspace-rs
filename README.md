@@ -54,4 +54,4 @@
  <http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.xls>
  <http://www.babelcolor.com/index_htm_files/ColorChecker_RGB_and_spectra.zip>
 
-
+Contains data from https://github.com/imallett/simple-spectral accompanying the EGSR 2019 paper "Mallett & Yuksel - Spectral Primary Decomposition for Rendering with sRGB Reflectance". 
