@@ -1,10 +1,11 @@
 //! RGB color types
 
 use super::math::*;
-pub use super::traits::*;
-use std::convert::From;
 use std::fmt;
 use std::ops::{Index, IndexMut};
+
+use float_cmp::{ApproxEq, F32Margin, F64Margin};
+
 
 #[cfg(feature = "f16")]
 use half::f16;
@@ -33,17 +34,39 @@ where
     pub fn powf(&self, x: T) -> RGBf<T> {
         RGBf::<T> {
             r: self.r.powf(x),
-            g: self.r.powf(x),
-            b: self.r.powf(x),
+            g: self.g.powf(x),
+            b: self.b.powf(x),
+        }
+    }
+
+    pub fn abs(&self) -> RGBf<T> {
+        RGBf::<T> {
+            r: self.r.abs(),
+            g: self.g.abs(),
+            b: self.b.abs(),
         }
     }
 }
 
 pub type RGBf32 = RGBf<f32>;
+pub type RGBf64 = RGBf<f64>;
+
+#[inline]
+pub fn rgbf<T>(r: T, g: T, b: T) -> RGBf<T>
+where
+    T: Real,
+{
+    RGBf::<T>::new(r, g, b)
+}
 
 #[inline]
 pub fn rgbf32(r: f32, g: f32, b: f32) -> RGBf32 {
     RGBf32::new(r, g, b)
+}
+
+#[inline]
+pub fn rgbf64(r: f64, g: f64, b: f64) -> RGBf64 {
+    RGBf64::new(r, g, b)
 }
 
 impl<T> Zero for RGBf<T>
@@ -126,6 +149,48 @@ where
     }
 }
 
+impl ApproxEq for RGBf32 {
+    type Margin = F32Margin;
+    fn approx_eq<T: Into<Self::Margin>>(self, other: Self, margin: T) -> bool {
+        let margin = margin.into();
+        self.r.approx_eq(other.r, margin) 
+        && self.g.approx_eq(other.g, margin)
+        && self.b.approx_eq(other.b, margin)
+    }
+}
+
+impl ApproxEq for RGBf64 {
+    type Margin = F64Margin;
+    fn approx_eq<T: Into<Self::Margin>>(self, other: Self, margin: T) -> bool {
+        let margin = margin.into();
+        self.r.approx_eq(other.r, margin) 
+        && self.g.approx_eq(other.g, margin)
+        && self.b.approx_eq(other.b, margin)
+    }
+}
+
+impl std::iter::Sum for RGBf32 {
+    fn sum<I>(iter: I) -> RGBf32 where I: Iterator<Item=RGBf32> {
+        let mut xyz = RGBf32::from_scalar(0.0);
+        for i in iter {
+            xyz += i;
+        }
+
+        xyz
+    }
+}
+
+impl std::iter::Sum for RGBf64 {
+    fn sum<I>(iter: I) -> RGBf64 where I: Iterator<Item=RGBf64> {
+        let mut xyz = RGBf64::from_scalar(0.0);
+        for i in iter {
+            xyz += i;
+        }
+
+        xyz
+    }
+}
+
 impl<T> fmt::Display for RGBf<T>
 where
     T: Scalar + fmt::Display,
@@ -148,6 +213,18 @@ where
             g: self.g + rhs.g,
             b: self.b + rhs.b,
         }
+    }
+}
+
+/// Addition operator
+impl<T> AddAssign for RGBf<T>
+where
+    T: Scalar,
+{
+    fn add_assign(&mut self, rhs: RGBf<T>) {
+        self.r += rhs.r;
+        self.g += rhs.g;
+        self.b += rhs.b
     }
 }
 
@@ -455,6 +532,16 @@ pub fn rgbaf32(r: f32, g: f32, b: f32, a: f32) -> RGBAf32 {
     RGBAf32 { r, g, b, a }
 }
 
+impl From<RGBf64> for RGBf32 {
+    fn from(c: RGBf64) -> RGBf32 {
+        RGBf32 {
+            r: c.r as f32,
+            g: c.g as f32,
+            b: c.b as f32,
+        }
+    }
+}
+
 impl From<RGBf32> for RGBu8 {
     fn from(c: RGBf32) -> RGBu8 {
         RGBu8 {
@@ -467,6 +554,26 @@ impl From<RGBf32> for RGBu8 {
 
 impl From<RGBf32> for RGBu16 {
     fn from(c: RGBf32) -> RGBu16 {
+        RGBu16 {
+            r: (clamp(c.r, 0.0, 1.0) * 65535.0).round() as u16,
+            g: (clamp(c.g, 0.0, 1.0) * 65535.0).round() as u16,
+            b: (clamp(c.b, 0.0, 1.0) * 65535.0).round() as u16,
+        }
+    }
+}
+
+impl From<RGBf64> for RGBu8 {
+    fn from(c: RGBf64) -> RGBu8 {
+        RGBu8 {
+            r: (clamp(c.r, 0.0, 1.0) * 255.0).round() as u8,
+            g: (clamp(c.g, 0.0, 1.0) * 255.0).round() as u8,
+            b: (clamp(c.b, 0.0, 1.0) * 255.0).round() as u8,
+        }
+    }
+}
+
+impl From<RGBf64> for RGBu16 {
+    fn from(c: RGBf64) -> RGBu16 {
         RGBu16 {
             r: (clamp(c.r, 0.0, 1.0) * 65535.0).round() as u16,
             g: (clamp(c.g, 0.0, 1.0) * 65535.0).round() as u16,
@@ -491,6 +598,26 @@ impl From<RGBu16> for RGBf32 {
             r: f32::from(c.r) / 65535.0,
             g: f32::from(c.g) / 65535.0,
             b: f32::from(c.b) / 65535.0,
+        }
+    }
+}
+
+impl From<RGBu8> for RGBf64 {
+    fn from(c: RGBu8) -> RGBf64 {
+        RGBf64 {
+            r: f64::from(c.r) / 255.0,
+            g: f64::from(c.g) / 255.0,
+            b: f64::from(c.b) / 255.0,
+        }
+    }
+}
+
+impl From<RGBu16> for RGBf64 {
+    fn from(c: RGBu16) -> RGBf64 {
+        RGBf64 {
+            r: f64::from(c.r) / 65535.0,
+            g: f64::from(c.g) / 65535.0,
+            b: f64::from(c.b) / 65535.0,
         }
     }
 }

@@ -1,697 +1,1405 @@
-//! Spectral Power Distributions
+use lazy_static::lazy_static;
 
-use super::cmf;
-use super::math::clamp;
-use super::xyz::XYZ;
-use std::iter::FromIterator;
-use std::ops::Index;
+use std::collections::HashMap;
 
-pub use crate::spd_conversion::{
-    spd_to_lumens, spd_to_xyz, spd_to_xyz_with_illuminant,
+use std::ops::Mul;
+
+use std::fmt::{Debug, Display};
+
+use crate::xyz::XYZf32;
+
+#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+use std::arch::x86_64::{
+    __m256, _mm256_add_ps, _mm256_cvtss_f32, _mm256_hadd_ps, _mm256_loadu_ps, _mm256_mul_ps,
+    _mm256_permute2f128_ps, 
 };
 
-/// A Spectral Power Distribution. An SPD is a vector of (wavelength, value)
-/// pairs. Wavelengths are assumed to be in nanometers.
-#[derive(PartialEq, Debug, Clone)]
+pub const SPD_SAMPLES: usize = 40;
+pub const SPD_START: f32 = 380.0;
+pub const SPD_END: f32 = 770.0;
+pub const SPD_INTERVAL: f32 = 10.0;
+
+#[repr(align(16))]
+#[derive(Clone)]
+/// A lightweight SPD using a fixed shape of 380-770nm wit a 10nm interval.
+/// All tristinulus calculations are performed with a D65 whitepoint and
+/// CIE 1931 2-degree standard observer CMFs.
 pub struct SPD {
-    samples: Vec<(f32, f32)>,
-    distribution: Distribution,
+    pub values: [f32; SPD_SAMPLES],
 }
 
 impl SPD {
-    /// Create a new SPD by copying the given slice of samples
-    pub fn new(samples: &[(f32, f32)]) -> SPD {
-        let samples = samples.to_vec();
-        let distribution = calculate_distribution(&samples);
-        SPD {
-            samples,
-            distribution,
-        }
+    pub fn new(values: [f32; 40]) -> SPD {
+        SPD { values }
     }
 
-    /// Create a new SPD by consuming the given Vec of samples.
-    pub fn consume(samples: Vec<(f32, f32)>) -> SPD {
-        let distribution = calculate_distribution(&samples);
-        SPD {
-            samples,
-            distribution,
-        }
-    }
-
-    /// Create a new SPD by copying the given wavelength and value slices
-    pub fn from_wavelength_and_value(wavelength: &[f32], value: &[f32]) -> SPD {
-        let len = std::cmp::min(wavelength.len(), value.len());
-        let mut samples = Vec::<(f32, f32)>::with_capacity(len);
-
-        let w = &wavelength[..len];
-        let p = &value[..len];
-
-        let mut is_uniform = true;
-        let step_size = w[1] - w[0];
-
-        for i in 0..len {
-            samples.push((w[i], p[i]));
-            if i > 0 {
-                let ss = w[i] - w[i - 1];
-                if (ss - step_size).abs() > std::f32::EPSILON {
-                    is_uniform = false;
-                }
+    pub fn constant(v: f32) -> SPD {
+        let mut values = [0.0f32; SPD_SAMPLES];
+        unsafe {
+            for i in 0..SPD_SAMPLES {
+                *values.get_unchecked_mut(i) = v;
             }
         }
 
-        let distribution = if is_uniform {
-            Distribution::Uniform(step_size)
-        } else {
-            Distribution::Varying
-        };
-
-        SPD {
-            samples,
-            distribution,
-        }
+        SPD { values }
     }
 
-    /// Initialize from a list of values and a start and end wavelength
-    /// It is assumed that 'end' is one step past the end of the array
-    pub fn from_range_and_values(start: f32, end: f32, value: &[f32]) -> SPD {
-        let range = end - start;
-        let step = range / value.len() as f32;
-
-        let samples: Vec<(f32, f32)> = value
-            .into_iter()
-            .enumerate()
-            .map(|(i, v)| (start + i as f32 * step, *v))
-            .collect();
-
-        SPD {
-            samples,
-            distribution: Distribution::Uniform(step),
-        }
+    #[inline(always)]
+    pub fn to_xyz(&self) -> XYZf32 {
+        spd_to_xyz(self)
     }
 
-    /// The smallest wavelength of the range covered by this SPD
-    pub fn start(&self) -> f32 {
-        self.samples.first().unwrap().0
+    pub fn iter(&self) -> impl Iterator<Item = &f32> {
+        self.values.iter()
     }
 
-    /// The largest wavelength of the range covered by this SPD
-    pub fn end(&self) -> f32 {
-        self.samples.last().unwrap().0
-    }
-
-    /// The size of the range covered by this SPD
-    pub fn range(&self) -> f32 {
-        self.end() - self.start()
-    }
-
-    /// The number of samples in this SPD
-    pub fn num_samples(&self) -> usize {
-        self.samples.len()
-    }
-
-    /// The distribution of this SPD
-    pub fn distribution(&self) -> Distribution {
-        self.distribution
-    }
-
-    /// Interpolates the value for `lambda` from the SPD. If `lambda` is
-    /// outside of the range of the SPD, it is clamped to lie within the range.
-    pub fn value_at(&self, lambda: f32) -> f32 {
-        let t = (lambda - self.start()) / self.range();
-        let i0 = (t * self.num_samples() as f32) as i32;
-        let i1 = i0 + 1;
-        let i0 = clamp(i0, 0, self.num_samples() as i32 - 1) as usize;
-        let i1 = clamp(i1, 0, self.num_samples() as i32 - 1) as usize;
-
-        let s0 = self.samples[i0];
-        let s1 = self.samples[i1];
-
-        if (s0.0 - s1.0).abs() < std::f32::EPSILON {
-            s0.1
-        } else {
-            let dt = clamp((lambda - s0.0) / (s1.0 - s0.0), 0.0, 1.0);
-            super::math::lerp(s0.1, s1.1, dt)
-        }
-    }
-
-    /// Interpolates the value for `lambda` from the SPD. If `lambda` is
-    /// outside of the range of the SPD, it is clamped to lie within the range.
-    pub fn value_at_extrapolate(
-        &self,
-        lambda: f32,
-        fill_method: FillMethod,
-    ) -> f32 {
-        if lambda < self.start() {
-            match fill_method {
-                FillMethod::Zero => 0.0,
-                FillMethod::Nearest => self.samples[0].1,
-                FillMethod::Linear => {
-                    let l0 = 0;
-                    let l1 = 1;
-                    self.samples[l1].1
-                        + (lambda - self.samples[l1].0)
-                            / (self.samples[l0].0 - self.samples[l1].0)
-                            * (self.samples[l0].1 - self.samples[l1].1)
-                }
-            }
-        } else if lambda > self.end() {
-            match fill_method {
-                FillMethod::Zero => 0.0,
-                FillMethod::Nearest => self.samples[self.samples.len() - 1].1,
-                FillMethod::Linear => {
-                    let l0 = self.num_samples() - 1;
-                    let l1 = self.num_samples() - 2;
-                    self.samples[l1].1
-                        + (lambda - self.samples[l1].0)
-                            / (self.samples[l0].0 - self.samples[l1].0)
-                            * (self.samples[l0].1 - self.samples[l1].1)
-                }
-            }
-        } else {
-            let t = (lambda - self.start()) / self.range();
-            let i0 = (t * (self.num_samples() - 1) as f32) as i32;
-            let i1 = i0 + 1;
-            let i0 = clamp(i0, 0, self.num_samples() as i32 - 1) as usize;
-            let i1 = clamp(i1, 0, self.num_samples() as i32 - 1) as usize;
-
-            let s0 = self.samples[i0];
-            let s1 = self.samples[i1];
-
-            if (s0.0 - s1.0).abs() < std::f32::EPSILON {
-                s0.1
-            } else {
-                let dt = clamp((lambda - s0.0) / (s1.0 - s0.0), 0.0, 1.0);
-                super::math::lerp(s0.1, s1.1, dt)
-            }
-        }
-    }
-
-    /// Get a reference to the vector of samples contained in this SPD
-    pub fn samples(&self) -> &Vec<(f32, f32)> {
-        &self.samples
-    }
-
-    /// Convert this SPD to a tristimulus XYZ value using the CIE 1931 2-degree
-    /// color matching functions. The SPD is assumed to be emissive.
-    pub fn to_xyz(&self) -> XYZ {
-        spd_to_xyz(self, &cmf::CIE_1931_2_DEGREE)
-    }
-
-    /// Convert this SPD to a tristimulus XYZ value using the CIE 1931 2-degree
-    /// color matching functions and the given reference illuminant SPD.
-    pub fn to_xyz_with_illuminant(&self, illum: &SPD) -> XYZ {
-        spd_to_xyz_with_illuminant(self, &cmf::CIE_1931_2_DEGREE, illum)
-    }
-
-    /// Convert this SPD to a luminous power in lumens using the CIE 1931 2-degree
-    /// color matching functions
-    pub fn to_lumens(&self) -> f32 {
-        spd_to_lumens(self, &cmf::CIE_1931_2_DEGREE)
-    }
-
-    /// Returns an iterator that interpolates and extrapolates this `SPD` over the range [`start`, `end`] with the given number of `steps`
-    pub fn reshape(
-        &self,
-        start: f32,
-        end_inc: f32,
-        steps: u32,
-        fill_method: FillMethod,
-    ) -> ExtrapolatingIterator {
-        ExtrapolatingIterator {
-            spd: &self,
-            current: 0,
-            steps,
-            start,
-            range: end_inc - start,
-            fill_method,
-        }
-    }
-
-    /// Returns an iterator that zips `self` together with `rhs`.
-    /// The wavelength range is the longer of `self` and `rhs`, and values are
-    /// extrapolated where necessary.
-    /// The step size between samples is the smaller of the `self` and `rhs` and values
-    /// are interpolated where necessary.
-    pub fn zip<'a, 'b>(
-        &'a self,
-        rhs: &'b SPD,
-        fill_method: FillMethod,
-    ) -> ZippedExtrapolatingIterator<'a, 'b> {
-        let start = self.start().min(rhs.start());
-        let end = self.end().max(rhs.end());
-        let delta = (self.range() / (self.num_samples() as f32 - 1.0))
-            .min(rhs.range() / (rhs.num_samples() as f32 - 1.0));
-        let num_samples = ((end - start) / delta) as u32 + 1;
-        ZippedExtrapolatingIterator {
-            spd_l: self,
-            spd_r: rhs,
-            current: 0,
-            steps: num_samples,
-            start,
-            delta,
-            fill_method,
-        }
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut f32> {
+        self.values.iter_mut()
     }
 }
 
-/// Method by which to create unspecified values when two SPDs are combined with differing ranges.
-/// `Zero` sets the unspecified values to 0.0
-/// `Nearest` takes the value from the nearest end of the specified range
-/// `Linear` linearly extrapolates a new value from the two values at the nearest end of the specified range.
-#[derive(Copy, Clone, Debug)]
-pub enum FillMethod {
-    Zero,
-    Nearest,
-    Linear,
-}
-
-/// Distribution of the spectral data. Some algorithms can be optimized if it
-/// is known that the samples are evenly distributed
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum Distribution {
-    /// The samples are evenly distributed and the contained value is the
-    /// wavelength distance between samples
-    Uniform(f32),
-    /// The samples are not evenly distributed
-    Varying,
-}
-
-fn calculate_distribution(samples: &[(f32, f32)]) -> Distribution {
-    let mut is_uniform = true;
-    let step_size = samples[1].0 - samples[0].0;
-
-    for i in 0..samples.len() {
-        if i > 0 {
-            let ss = samples[i].0 - samples[i - 1].0;
-            if (ss - step_size).abs() > std::f32::EPSILON {
-                is_uniform = false;
-            }
+cfg_if::cfg_if! {
+    if #[cfg(target_feature="avx")] {
+        #[inline(always)]
+        pub fn spd_to_xyz(spd: &SPD) -> XYZf32 {
+            spd_to_xyz_avx(spd)
         }
-    }
-
-    if is_uniform {
-        Distribution::Uniform(step_size)
     } else {
-        Distribution::Varying
-    }
-}
-
-impl Index<usize> for SPD {
-    type Output = (f32, f32);
-    fn index(&self, index: usize) -> &(f32, f32) {
-        &self.samples[index]
-    }
-}
-
-pub struct ZippedExtrapolatingIterator<'a, 'b> {
-    spd_l: &'a SPD,
-    spd_r: &'b SPD,
-    current: u32,
-    steps: u32,
-    start: f32,
-    delta: f32,
-    fill_method: FillMethod,
-}
-
-impl<'a, 'b> Iterator for ZippedExtrapolatingIterator<'a, 'b> {
-    type Item = (f32, f32, f32);
-    fn next(&mut self) -> Option<(f32, f32, f32)> {
-        if self.current < self.steps {
-            let lambda = self.start + self.delta * self.current as f32;
-            self.current += 1;
-            Some((
-                lambda,
-                self.spd_l
-                    .value_at_extrapolate(lambda, self.fill_method)
-                    .max(0.0),
-                self.spd_r
-                    .value_at_extrapolate(lambda, self.fill_method)
-                    .max(0.0),
-            ))
-        } else {
-            None
+        #[inline(always)]
+        pub fn spd_to_xyz(spd: &SPD) -> XYZf32 {
+            spd_to_xyz_scalar(spd)
         }
     }
 }
 
-/// Iterator that interpolates and extrapolates a new SPD from the given shape parameters
-pub struct ExtrapolatingIterator<'a> {
-    spd: &'a SPD,
-    current: u32,
-    steps: u32,
-    start: f32,
-    range: f32,
-    fill_method: FillMethod,
-}
+pub fn spd_to_xyz_scalar(spd: &SPD) -> XYZf32 {
+    let mut xyz = XYZf32::from_scalar(0.0);
+    let mut c = XYZf32::from_scalar(0.0);
 
-impl<'a> Iterator for ExtrapolatingIterator<'a> {
-    type Item = (f32, f32);
-    fn next(&mut self) -> Option<(f32, f32)> {
-        if self.current < self.steps {
-            let delta = (self.current as f32) / ((self.steps - 1) as f32);
-            let lambda = self.start + self.range * delta;
-            self.current += 1;
-            Some((
-                lambda,
-                self.spd
-                    .value_at_extrapolate(lambda, self.fill_method)
-                    .max(0.0),
-            ))
-        } else {
-            None
+    unsafe {
+        for i in 0..SPD_SAMPLES {
+            let x = XYZf32::new(
+                spd.values.get_unchecked(i) * W_X.values.get_unchecked(i),
+                spd.values.get_unchecked(i) * W_Y.values.get_unchecked(i),
+                spd.values.get_unchecked(i) * W_Z.values.get_unchecked(i),
+            );
+            let y = x - c;
+            let t = xyz + y;
+            c = (t - xyz) - y;
+            xyz = t;
         }
     }
+
+    xyz
 }
 
-impl FromIterator<(f32, f32)> for SPD {
-    fn from_iter<I: IntoIterator<Item = (f32, f32)>>(iter: I) -> Self {
-        let mut v = Vec::new();
-        for i in iter {
-            v.push(i)
+#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+pub fn spd_to_xyz_avx(spd: &SPD) -> XYZf32 {
+    unsafe {
+        let s0 = _mm256_loadu_ps(spd.values.as_ptr());
+        let s1 = _mm256_loadu_ps(spd.values.as_ptr().offset(8));
+        let s2 = _mm256_loadu_ps(spd.values.as_ptr().offset(16));
+        let s3 = _mm256_loadu_ps(spd.values.as_ptr().offset(24));
+        let s4 = _mm256_loadu_ps(spd.values.as_ptr().offset(32));
+
+        let x0 = _mm256_loadu_ps(W_X.values.as_ptr());
+        let x1 = _mm256_loadu_ps(W_X.values.as_ptr().offset(8));
+        let x2 = _mm256_loadu_ps(W_X.values.as_ptr().offset(16));
+        let x3 = _mm256_loadu_ps(W_X.values.as_ptr().offset(24));
+        let x4 = _mm256_loadu_ps(W_X.values.as_ptr().offset(32));
+
+        let y0 = _mm256_loadu_ps(W_Y.values.as_ptr());
+        let y1 = _mm256_loadu_ps(W_Y.values.as_ptr().offset(8));
+        let y2 = _mm256_loadu_ps(W_Y.values.as_ptr().offset(16));
+        let y3 = _mm256_loadu_ps(W_Y.values.as_ptr().offset(24));
+        let y4 = _mm256_loadu_ps(W_Y.values.as_ptr().offset(32));
+
+        let z0 = _mm256_loadu_ps(W_Z.values.as_ptr());
+        let z1 = _mm256_loadu_ps(W_Z.values.as_ptr().offset(8));
+        let z2 = _mm256_loadu_ps(W_Z.values.as_ptr().offset(16));
+        let z3 = _mm256_loadu_ps(W_Z.values.as_ptr().offset(24));
+        let z4 = _mm256_loadu_ps(W_Z.values.as_ptr().offset(32));
+
+        let xs0 = _mm256_mul_ps(s0, x0);
+        let xs1 = _mm256_mul_ps(s1, x1);
+        let xs2 = _mm256_mul_ps(s2, x2);
+        let xs3 = _mm256_mul_ps(s3, x3);
+        let xs4 = _mm256_mul_ps(s4, x4);
+
+        let ys0 = _mm256_mul_ps(s0, y0);
+        let ys1 = _mm256_mul_ps(s1, y1);
+        let ys2 = _mm256_mul_ps(s2, y2);
+        let ys3 = _mm256_mul_ps(s3, y3);
+        let ys4 = _mm256_mul_ps(s4, y4);
+
+        let zs0 = _mm256_mul_ps(s0, z0);
+        let zs1 = _mm256_mul_ps(s1, z1);
+        let zs2 = _mm256_mul_ps(s2, z2);
+        let zs3 = _mm256_mul_ps(s3, z3);
+        let zs4 = _mm256_mul_ps(s4, z4);
+
+        let xa = _mm256_add_ps(xs0, xs1);
+        let xb = _mm256_add_ps(xs2, xs3);
+
+        let ya = _mm256_add_ps(ys0, ys1);
+        let yb = _mm256_add_ps(ys2, ys3);
+
+        let za = _mm256_add_ps(zs0, zs1);
+        let zb = _mm256_add_ps(zs2, zs3);
+
+        let xc = _mm256_add_ps(xa, xb);
+        let yc = _mm256_add_ps(ya, yb);
+        let zc = _mm256_add_ps(za, zb);
+
+        let xd = _mm256_add_ps(xc, xs4);
+        let yd = _mm256_add_ps(yc, ys4);
+        let zd = _mm256_add_ps(zc, zs4);
+
+        XYZf32::new(hadd_avx(xd), hadd_avx(yd), hadd_avx(zd))
+    }
+}
+
+#[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
+unsafe fn hadd_avx(v0: __m256) -> f32 {
+    let ymm2 = _mm256_permute2f128_ps(v0, v0, 1);
+    let ymm = _mm256_add_ps(v0, ymm2);
+    let ymm = _mm256_hadd_ps(ymm, ymm);
+    let ymm = _mm256_hadd_ps(ymm, ymm);
+    _mm256_cvtss_f32(ymm)
+}
+
+impl Mul for &SPD {
+    type Output = SPD;
+    fn mul(self, rhs: &SPD) -> SPD {
+        let mut values = [0.0f32; SPD_SAMPLES];
+        unsafe {
+            for i in 0..SPD_SAMPLES {
+                *values.get_unchecked_mut(i) =
+                    self.values.get_unchecked(i) * rhs.values.get_unchecked(i);
+            }
         }
 
-        SPD::consume(v)
+        SPD { values }
     }
 }
 
-use std::ops::{Add, Div, Mul, Neg, Sub};
-use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
+impl Display for SPD {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
 
-impl Add for SPD {
-    type Output = SPD;
+        for v in self.iter() {
+            write!(f, "{}, ", v)?;
+        }
 
-    fn add(self, rhs: SPD) -> SPD {
-        self.zip(&rhs, FillMethod::Nearest)
-            .map(|(l, v_l, v_r)| (l, v_l + v_r))
-            .collect()
+        write!(f, "]")
     }
 }
 
-impl Mul for SPD {
-    type Output = SPD;
+impl Debug for SPD {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
 
-    fn mul(self, rhs: SPD) -> SPD {
-        self.zip(&rhs, FillMethod::Nearest)
-            .map(|(l, v_l, v_r)| (l, v_l * v_r))
-            .collect()
+        for v in self.values.iter() {
+            write!(f, "{}, ", v)?;
+        }
+
+        write!(f, "]")
     }
 }
 
-impl Sub for SPD {
-    type Output = SPD;
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::colorchecker;
+    use float_cmp::{ApproxEq, F32Margin};
 
-    fn sub(self, rhs: SPD) -> SPD {
-        self.zip(&rhs, FillMethod::Nearest)
-            .map(|(l, v_l, v_r)| (l, v_l - v_r))
-            .collect()
+    #[test]
+    fn test_spd_to_xyz() {
+        for (name, spd) in BABELCOLOR.iter() {
+            let xyz = spd.to_xyz();
+            let xyz_ref: XYZf32 = colorchecker::XYZ_D65[name].into();
+            println!("    xyz: {}", xyz);
+            println!("ref xyz: {}", xyz_ref);
+            assert!(xyz.approx_eq(
+                xyz_ref,
+                F32Margin {
+                    epsilon: 0.0,
+                    ulps: 1
+                }
+            ));
+        }
+    }
+
+    #[cfg(target_feature="avx")]
+    #[test]
+    fn test_spd_to_xyz_avx() {
+        for (name, spd) in BABELCOLOR.iter() {
+            let xyz = spd_to_xyz_avx(spd);
+            let xyz_ref: XYZf32 = colorchecker::XYZ_D65[name].into();
+            println!("    xyz: {}", xyz);
+            println!("ref xyz: {}", xyz_ref);
+            assert!(xyz.approx_eq(
+                xyz_ref,
+                F32Margin {
+                    epsilon: 0.0,
+                    ulps: 2
+                }
+            ));
+        }
+    }
+
+    #[test]
+    fn spd_mul() {
+        let s1 = SPD::constant(2.0);
+        let s2 = SPD::constant(0.5);
+
+        let s3 = &s1 * &s2;
+
+        assert_eq!(s3.values[0], 1.0);
+        assert_eq!(s3.values[39], 1.0);
+
+        println!("{:?}", s1);
     }
 }
 
-impl Div for SPD {
-    type Output = SPD;
-
-    fn div(self, rhs: SPD) -> SPD {
-        self.zip(&rhs, FillMethod::Nearest)
-            .map(|(l, v_l, v_r)| (l, v_l / v_r))
-            .collect()
-    }
-}
-
-impl Neg for SPD {
-    type Output = SPD;
-
-    fn neg(self) -> SPD {
-        self.samples.into_iter().map(|(l, v)| (l, -v)).collect()
-    }
-}
-
-impl Add<f32> for SPD {
-    type Output = SPD;
-
-    fn add(self, rhs: f32) -> SPD {
-        self.samples
-            .into_iter()
-            .map(|(l, v)| (l, v + rhs))
-            .collect()
-    }
-}
-
-impl Mul<f32> for SPD {
-    type Output = SPD;
-
-    fn mul(self, rhs: f32) -> SPD {
-        self.samples
-            .into_iter()
-            .map(|(l, v)| (l, v * rhs))
-            .collect()
-    }
-}
-
-impl Sub<f32> for SPD {
-    type Output = SPD;
-
-    fn sub(self, rhs: f32) -> SPD {
-        self.samples
-            .into_iter()
-            .map(|(l, v)| (l, v - rhs))
-            .collect()
-    }
-}
-
-impl Div<f32> for SPD {
-    type Output = SPD;
-
-    fn div(self, rhs: f32) -> SPD {
-        self.samples
-            .into_iter()
-            .map(|(l, v)| (l, v / rhs))
-            .collect()
-    }
-}
-
-impl Add<SPD> for f32 {
-    type Output = SPD;
-    fn add(self, rhs: SPD) -> SPD {
-        rhs.samples
-            .into_iter()
-            .map(|(l, v)| (l, v + self))
-            .collect()
-    }
-}
-
-impl Sub<SPD> for f32 {
-    type Output = SPD;
-    fn sub(self, rhs: SPD) -> SPD {
-        rhs.samples
-            .into_iter()
-            .map(|(l, v)| (l, v - self))
-            .collect()
-    }
-}
-
-impl Mul<SPD> for f32 {
-    type Output = SPD;
-    fn mul(self, rhs: SPD) -> SPD {
-        rhs.samples
-            .into_iter()
-            .map(|(l, v)| (l, v * self))
-            .collect()
-    }
-}
-
-impl Div<SPD> for f32 {
-    type Output = SPD;
-    fn div(self, rhs: SPD) -> SPD {
-        rhs.samples
-            .into_iter()
-            .map(|(l, v)| (l, v / self))
-            .collect()
-    }
-}
-
-impl AddAssign for SPD {
-    fn add_assign(&mut self, rhs: SPD) {
-        *self = self
-            .zip(&rhs, FillMethod::Nearest)
-            .map(|(l, v_l, v_r)| (l, v_l + v_r))
-            .collect();
-    }
-}
-
-impl MulAssign for SPD {
-    fn mul_assign(&mut self, rhs: SPD) {
-        *self = self
-            .zip(&rhs, FillMethod::Nearest)
-            .map(|(l, v_l, v_r)| (l, v_l * v_r))
-            .collect();
-    }
-}
-
-impl SubAssign for SPD {
-    fn sub_assign(&mut self, rhs: SPD) {
-        *self = self
-            .zip(&rhs, FillMethod::Nearest)
-            .map(|(l, v_l, v_r)| (l, v_l - v_r))
-            .collect();
-    }
-}
-
-impl DivAssign for SPD {
-    fn div_assign(&mut self, rhs: SPD) {
-        *self = self
-            .zip(&rhs, FillMethod::Nearest)
-            .map(|(l, v_l, v_r)| (l, v_l / v_r))
-            .collect();
-    }
-}
-
-impl AddAssign<f32> for SPD {
-    fn add_assign(&mut self, rhs: f32) {
-        self.samples
-            .iter_mut()
-            .map(|(_, v)| {
-                *v += rhs;
-            })
-            .all(|_| true);
-    }
-}
-
-impl SubAssign<f32> for SPD {
-    fn sub_assign(&mut self, rhs: f32) {
-        self.samples
-            .iter_mut()
-            .map(|(_, v)| {
-                *v -= rhs;
-            })
-            .all(|_| true);
-    }
-}
-
-impl MulAssign<f32> for SPD {
-    fn mul_assign(&mut self, rhs: f32) {
-        self.samples
-            .iter_mut()
-            .map(|(_, v)| {
-                *v *= rhs;
-            })
-            .all(|_| true);
-    }
-}
-
-impl DivAssign<f32> for SPD {
-    fn div_assign(&mut self, rhs: f32) {
-        self.samples
-            .iter_mut()
-            .map(|(_l, v)| {
-                *v /= rhs;
-            })
-            .all(|_| true);
-    }
-}
-
-#[test]
-fn test_interpolation() {
-    let spd =
-        SPD::new(&[(400.0, 0.5), (500.0, 1.0), (600.0, 1.0), (700.0, 0.5)]);
-
-    let i1: SPD = spd.reshape(300.0, 800.0, 6, FillMethod::Nearest).collect();
-    assert_eq!(
-        i1,
-        SPD::new(&[
-            (300.0, 0.5),
-            (400.0, 0.5),
-            (500.0, 1.0),
-            (600.0, 1.0),
-            (700.0, 0.5),
-            (800.0, 0.5),
-        ])
-    );
-
-    let i2: SPD = spd.reshape(300.0, 800.0, 6, FillMethod::Zero).collect();
-    assert_eq!(
-        i2,
-        SPD::new(&[
-            (300.0, 0.0),
-            (400.0, 0.5),
-            (500.0, 1.0),
-            (600.0, 1.0),
-            (700.0, 0.5),
-            (800.0, 0.0),
-        ])
-    );
-}
-
-#[test]
-fn test_ops() {
-    let a = SPD::new(&[(400.0, 1.0), (500.0, 2.0), (600.0, 3.0), (700.0, 4.0)]);
-
-    let b = SPD::new(&[(400.0, 5.0), (500.0, 6.0), (600.0, 7.0), (700.0, 8.0)]);
-
-    assert_eq!(
-        a + b,
-        SPD::new(&[(400.0, 6.0), (500.0, 8.0), (600.0, 10.0), (700.0, 12.0),])
-    );
-
-    let c = SPD::new(&[(500.0, 1.0), (600.0, 1.0), (700.0, 0.0)]);
-    let d = SPD::new(&[
-        (400.0, 0.0),
-        (450.0, 0.25),
-        (500.0, 0.5),
-        (550.0, 1.0),
-        (600.0, 0.5),
-        (650.0, 0.25),
-        (700.0, 0.0),
+lazy_static! {
+    pub static ref W_X: SPD = SPD::new([
+        0.007864003493245105835818,
+        0.021943717019242681837143,
+        0.101133744382973886355437,
+        0.376414858482632896929942,
+        1.201253070400094991043716,
+        2.383645531319864563357669,
+        3.421092850664719797748603,
+        3.705891113995714913897928,
+        3.229389765277956403366488,
+        2.147444969281128823723748,
+        1.043705008035428871693284,
+        0.332370261179216475166953,
+        0.045448860948042492380328,
+        0.097995009657719053808300,
+        0.636135480290361154942502,
+        1.668186881249859698783666,
+        2.882278494404322710664701,
+        4.253157660902187942042474,
+        5.625171277346882270364858,
+        6.984050366311485014136906,
+        8.223133612943772874359638,
+        8.714900442338462838165469,
+        9.017012502520618255630325,
+        8.494691128050712691788249,
+        7.053843922181556536088465,
+        5.118833913627399923029770,
+        3.518633359128076509847460,
+        2.165511357242208667628347,
+        1.251381284110856029201386,
+        0.679331703320806390422604,
+        0.341091614928396735795246,
+        0.152973607860623722620730,
+        0.075753329173883235392317,
+        0.039745035049458470044481,
+        0.017583441176375266823406,
+        0.009301682781154962248449,
+        0.004820496761549509720512,
+        0.001989701359435081060717,
+        0.000764666426511929724075,
+        0.000662482764242765145672,
     ]);
+    pub static ref W_Y: SPD = SPD::new([
+        0.000229771725224404461821,
+        0.000626210118362575366042,
+        0.002790961935668020716533,
+        0.010074297386527085798602,
+        0.035532218004344022499463,
+        0.097848624627078523152690,
+        0.226347863565176637967724,
+        0.418132395050589300566912,
+        0.664506800474969350212007,
+        0.997458536350732227759863,
+        1.503097692273868357659694,
+        2.160941176561009147150116,
+        3.353284482062226512510961,
+        5.129818242379510451200986,
+        7.069296076785541060871765,
+        8.716207575315523925496564,
+        9.469337176383364251819330,
+        9.757864179018314487734642,
+        9.418205098674231834365855,
+        8.716742696740441331826332,
+        7.810921393044155891516311,
+        6.431017571480503569603115,
+        5.352284429223217010473945,
+        4.264166572381902220456595,
+        3.146731274078888418443967,
+        2.110381378837380417223812,
+        1.374308218847557272468407,
+        0.816852806590933955277478,
+        0.462722825330793285925068,
+        0.248620712756326356362990,
+        0.123956253721055037475551,
+        0.055308372360965848968384,
+        0.027350935706321286011722,
+        0.014351812738380731807042,
+        0.006349702569816374243816,
+        0.003359008094616681809608,
+        0.001740769570357785607159,
+        0.000718517550195565328323,
+        0.000276135039880487419620,
+        0.000239234644044567168952,
+    ]);
+    pub static ref W_Z: SPD = SPD::new([
+        0.036969800625181514774908,
+        0.103598173440013568979978,
+        0.478987803819571567043312,
+        1.792163744996583485402653,
+        5.771824395781130156990457,
+        11.636745739943137323280098,
+        17.167100300755482322756507,
+        19.543652856028778330710338,
+        18.531923565979919743540449,
+        14.127659390788856796916662,
+        8.860647688085775186550563,
+        4.850210608565997283392335,
+        2.802865920087209250510796,
+        1.602395157366788280839387,
+        0.790482541461388854564518,
+        0.420112289203490474331915,
+        0.202225879935962027378338,
+        0.085630264002262784783781,
+        0.036551743379199412575797,
+        0.019242361617518348448908,
+        0.014370250615592019410860,
+        0.009806589741973237295269,
+        0.006733684744239111508168,
+        0.003182758878538118497287,
+        0.001398389770691305360878,
+        0.000434521872054334826977,
+        0.000138027976671608752692,
+        0.000017024039294825980367,
+        -0.000002937167356198579860,
+        0.000000000000000000000003,
+        0.000000000000000000000000,
+        0.000000000000000000000000,
+        0.000000000000000000000000,
+        0.000000000000000000000000,
+        0.000000000000000000000000,
+        0.000000000000000000000000,
+        0.000000000000000000000000,
+        0.000000000000000000000000,
+        0.000000000000000000000000,
+        0.000000000000000000000000,
+    ]);
+}
 
-    assert_eq!(
-        c.clone() + d.clone(),
-        SPD::new(&[
-            (400.0, 1.0),
-            (450.0, 1.25),
-            (500.0, 1.5),
-            (550.0, 2.0),
-            (600.0, 1.5),
-            (650.0, 0.75),
-            (700.0, 0.0),
-        ])
-    );
-
-    let mut c1 = c.clone();
-    c1 += d;
-    assert_eq!(
-        c1,
-        SPD::new(&[
-            (400.0, 1.0),
-            (450.0, 1.25),
-            (500.0, 1.5),
-            (550.0, 2.0),
-            (600.0, 1.5),
-            (650.0, 0.75),
-            (700.0, 0.0),
-        ])
-    );
-
-    let a = SPD::new(&[(100.0, 1.0), (200.0, 1.0)]);
-    let b = SPD::new(&[(100.0, 2.0), (200.0, 2.0)]);
-
-    assert_eq!(
-        a.clone() * b.clone(),
-        SPD::new(&[(100.0, 2.0), (200.0, 2.0),])
-    );
-
-    assert_eq!(
-        a.clone() / b.clone(),
-        SPD::new(&[(100.0, 0.5), (200.0, 0.5),])
-    );
-
-    assert_eq!(
-        b.clone() - a.clone(),
-        SPD::new(&[(100.0, 1.0), (200.0, 1.0),])
-    );
-
-    assert_eq!(a.clone() * 4.0, SPD::new(&[(100.0, 4.0), (200.0, 4.0),]));
-
-    assert_eq!(a.clone() / 4.0, SPD::new(&[(100.0, 0.25), (200.0, 0.25),]));
-
-    assert_eq!(a.clone() - 0.5, SPD::new(&[(100.0, 0.5), (200.0, 0.5),]));
+lazy_static! {
+    pub static ref BABELCOLOR: HashMap<String, SPD> = hashmap! {
+        "dark_skin".into() => SPD::new([
+            0.055000000000000000277556,
+            0.058000000000000009880985,
+            0.060999999999999963973263,
+            0.062000000000000034250380,
+            0.062000000000000048128168,
+            0.062000000000000055067062,
+            0.062000000000000041189274,
+            0.062000000000000041189274,
+            0.062000000000000041189274,
+            0.062000000000000034250380,
+            0.062000000000000034250380,
+            0.063000000000000042077453,
+            0.065000000000000002220446,
+            0.069999999999999965027975,
+            0.075999999999999970357045,
+            0.079000000000000084043883,
+            0.080999999999999988675725,
+            0.084000000000000032973624,
+            0.091000000000000066946448,
+            0.103000000000000035971226,
+            0.118999999999999994670929,
+            0.134000000000000091260333,
+            0.142999999999999904964909,
+            0.146999999999999991784350,
+            0.150999999999999912070336,
+            0.158000000000000112576615,
+            0.168000000000000010436096,
+            0.179000000000000047961635,
+            0.187999999999999917177362,
+            0.190000000000000057731597,
+            0.186000000000000081934459,
+            0.180999999999999938715689,
+            0.182000000000000189404048,
+            0.186999999999999971800335,
+            0.195999999999999952038365,
+            0.208999999999999852562382,
+            0.208999999999999852562382,
+            0.208999999999999852562382,
+            0.208999999999999852562382,
+            0.208999999999999852562382,
+        ]),
+        "light_skin".into() => SPD::new([
+            0.117000000000000062283512,
+            0.142999999999999849453758,
+            0.174999999999999850119892,
+            0.190999999999999919841898,
+            0.195999999999999868771638,
+            0.199000000000000037969627,
+            0.203999999999999848121490,
+            0.213000000000000050404125,
+            0.227999999999999869437772,
+            0.251000000000000000888178,
+            0.279999999999999860111899,
+            0.308999999999999663824468,
+            0.329000000000000070166095,
+            0.333000000000000018207658,
+            0.314999999999999835686992,
+            0.285999999999999920952121,
+            0.272999999999999687361196,
+            0.275999999999999856559185,
+            0.276999999999999801936212,
+            0.288999999999999868105505,
+            0.339000000000000134559031,
+            0.420000000000000317523785,
+            0.487999999999999767297254,
+            0.525000000000000022204460,
+            0.546000000000000262900812,
+            0.562000000000000055067062,
+            0.578000000000000180300219,
+            0.594999999999999529265438,
+            0.611999999999999877431378,
+            0.624999999999999777955395,
+            0.638000000000000122568622,
+            0.655999999999999916511229,
+            0.678000000000000491162666,
+            0.700000000000000066613381,
+            0.716999999999999082511692,
+            0.734000000000000651922960,
+            0.734000000000000651922960,
+            0.734000000000000651922960,
+            0.734000000000000651922960,
+            0.734000000000000651922960,
+        ]),
+        "blue_sky".into() => SPD::new([
+            0.129999999999999921174165,
+            0.176999999999999935162975,
+            0.251000000000000222932783,
+            0.305999999999999716671084,
+            0.324000000000000065725203,
+            0.329999999999999960031971,
+            0.333000000000000295763414,
+            0.330999999999999738875545,
+            0.323000000000000175859327,
+            0.311000000000000054178884,
+            0.297999999999999987121413,
+            0.285000000000000197619698,
+            0.269000000000000016875390,
+            0.249999999999999972244424,
+            0.231000000000000010880186,
+            0.214000000000000051292304,
+            0.199000000000000010214052,
+            0.184999999999999859001676,
+            0.168999999999999872546397,
+            0.157000000000000000666134,
+            0.148999999999999993560706,
+            0.145000000000000017763568,
+            0.142000000000000181632487,
+            0.140999999999999930944128,
+            0.140999999999999986455279,
+            0.141000000000000014210855,
+            0.142999999999999904964909,
+            0.146999999999999991784350,
+            0.152000000000000023980817,
+            0.154000000000000081268325,
+            0.150000000000000133226763,
+            0.143999999999999961364239,
+            0.136000000000000009769963,
+            0.132000000000000061728400,
+            0.134999999999999925615057,
+            0.147000000000000102806652,
+            0.147000000000000102806652,
+            0.147000000000000102806652,
+            0.147000000000000102806652,
+            0.147000000000000102806652,
+        ]),
+        "foliage".into() => SPD::new([
+            0.050999999999999975908160,
+            0.053999999999999985511590,
+            0.056000000000000056676885,
+            0.056999999999999974298337,
+            0.058000000000000065392136,
+            0.058999999999999955258012,
+            0.060000000000000011657342,
+            0.060999999999999977851051,
+            0.062000000000000013433699,
+            0.063000000000000028199665,
+            0.064999999999999988342658,
+            0.067000000000000003996803,
+            0.075000000000000038857806,
+            0.100999999999999950928142,
+            0.144999999999999823474539,
+            0.178000000000000102584607,
+            0.183999999999999941380224,
+            0.170000000000000123234756,
+            0.148999999999999965805131,
+            0.133000000000000090372154,
+            0.121999999999999969579889,
+            0.115000000000000046629367,
+            0.108999999999999985789145,
+            0.104999999999999968358644,
+            0.104000000000000009103829,
+            0.105999999999999955369034,
+            0.109000000000000069055872,
+            0.112000000000000030087044,
+            0.113999999999999976352250,
+            0.113999999999999934718886,
+            0.112000000000000016209256,
+            0.112000000000000043964832,
+            0.115000000000000060507155,
+            0.120000000000000037192471,
+            0.124999999999999986122212,
+            0.130000000000000059952043,
+            0.130000000000000059952043,
+            0.130000000000000059952043,
+            0.130000000000000059952043,
+            0.130000000000000059952043,
+        ]),
+        "blue_flower".into() => SPD::new([
+            0.143999999999999905853088,
+            0.198000000000000009325873,
+            0.293999999999999983568699,
+            0.374999999999999944488849,
+            0.407999999999999696242980,
+            0.420999999999999818811602,
+            0.426000000000000156319402,
+            0.425999999999999989785948,
+            0.419000000000000205613304,
+            0.403000000000000246913601,
+            0.379000000000000059063865,
+            0.345999999999999807709372,
+            0.310999999999999998667732,
+            0.281000000000000138555833,
+            0.254000000000000114575016,
+            0.228999999999999925837102,
+            0.214000000000000162314606,
+            0.208000000000000018207658,
+            0.202000000000000040634163,
+            0.193999999999999978017584,
+            0.192999999999999838351528,
+            0.200000000000000149880108,
+            0.214000000000000273336909,
+            0.230000000000000065503158,
+            0.240999999999999769961789,
+            0.253999999999999781508109,
+            0.278999999999999859223720,
+            0.313000000000000111466392,
+            0.348000000000000253574939,
+            0.366000000000000047517545,
+            0.365999999999999992006394,
+            0.358999999999999763744540,
+            0.357999999999999929389816,
+            0.364999999999999880095913,
+            0.377000000000000390354415,
+            0.398000000000000075939255,
+            0.398000000000000075939255,
+            0.398000000000000075939255,
+            0.398000000000000075939255,
+            0.398000000000000075939255,
+        ]),
+        "bluish_green".into() => SPD::new([
+            0.136000000000000009769963,
+            0.179000000000000075717210,
+            0.246999999999999914068738,
+            0.297000000000000152766688,
+            0.319999999999999840127884,
+            0.336999999999999855226918,
+            0.355000000000000204281037,
+            0.380999999999999949817919,
+            0.419000000000000039079850,
+            0.465999999999999747757329,
+            0.509999999999999897859482,
+            0.545999999999999596766997,
+            0.566999999999999726441047,
+            0.574000000000000065725203,
+            0.568999999999999728217404,
+            0.550999999999999490185587,
+            0.524000000000000687450097,
+            0.487999999999999489741498,
+            0.445000000000000117683641,
+            0.399999999999999911182158,
+            0.350000000000000144328993,
+            0.298999999999999599431533,
+            0.252000000000000001776357,
+            0.221000000000000057509553,
+            0.203999999999999875877066,
+            0.195999999999999841016063,
+            0.190999999999999975353049,
+            0.187999999999999750643909,
+            0.190999999999999919841898,
+            0.198999999999999926947325,
+            0.211999999999999855226918,
+            0.223000000000000003774758,
+            0.231999999999999928501637,
+            0.232999999999999901634240,
+            0.228999999999999925837102,
+            0.228999999999999981348253,
+            0.228999999999999981348253,
+            0.228999999999999981348253,
+            0.228999999999999981348253,
+            0.228999999999999981348253,
+        ]),
+        "orange".into() => SPD::new([
+            0.054000000000000103472786,
+            0.054000000000000034083847,
+            0.052999999999999998501199,
+            0.054000000000000027144953,
+            0.054000000000000054900529,
+            0.055000000000000021094237,
+            0.054999999999999979460874,
+            0.054999999999999979460874,
+            0.056000000000000035860204,
+            0.056999999999999953481655,
+            0.058000000000000051514348,
+            0.060999999999999984789945,
+            0.068000000000000018762769,
+            0.089000000000000023536728,
+            0.124999999999999972244424,
+            0.153999999999999998001599,
+            0.174000000000000154543045,
+            0.199000000000000065725203,
+            0.247999999999999970468068,
+            0.335000000000000186517468,
+            0.444000000000000172306613,
+            0.538000000000000033750780,
+            0.587000000000000188293825,
+            0.594999999999999418243135,
+            0.591000000000000080824236,
+            0.586999999999999744204615,
+            0.583999999999999630517777,
+            0.583999999999999408473172,
+            0.590000000000000079936058,
+            0.602999999999999980460075,
+            0.619999999999999773514503,
+            0.638999999999999901412195,
+            0.655000000000000026645353,
+            0.663000000000000255795385,
+            0.663000000000000366817687,
+            0.667000000000000925481913,
+            0.667000000000000925481913,
+            0.667000000000000925481913,
+            0.667000000000000925481913,
+            0.667000000000000925481913,
+        ]),
+        "purplish_blue".into() => SPD::new([
+            0.121999999999999969579889,
+            0.164000000000000006883383,
+            0.228999999999999981348253,
+            0.285999999999999809929818,
+            0.326999999999999790833982,
+            0.360999999999999932054351,
+            0.387999999999999900524017,
+            0.400000000000000077715612,
+            0.392000000000000126121336,
+            0.361999999999999932942529,
+            0.316000000000000336175532,
+            0.259999999999999953370633,
+            0.208999999999999741540080,
+            0.168000000000000176969550,
+            0.138000000000000067057471,
+            0.117000000000000034527936,
+            0.104000000000000036859404,
+            0.096000000000000029753977,
+            0.090000000000000010547119,
+            0.086000000000000006994405,
+            0.084000000000000005218048,
+            0.084000000000000046851412,
+            0.084000000000000019095836,
+            0.084000000000000046851412,
+            0.084000000000000046851412,
+            0.085000000000000019984014,
+            0.089999999999999996669331,
+            0.097999999999999962141395,
+            0.109000000000000027422509,
+            0.123000000000000039857007,
+            0.142999999999999932720485,
+            0.168999999999999761524094,
+            0.205000000000000071054274,
+            0.243999999999999828137476,
+            0.287000000000000421440660,
+            0.331999999999999961808328,
+            0.331999999999999961808328,
+            0.331999999999999961808328,
+            0.331999999999999961808328,
+            0.331999999999999961808328,
+        ]),
+        "moderate_red".into() => SPD::new([
+            0.096000000000000029753977,
+            0.115000000000000032751579,
+            0.131000000000000060840222,
+            0.134999999999999897859482,
+            0.133000000000000007105427,
+            0.131999999999999978461673,
+            0.129999999999999948929741,
+            0.128000000000000002664535,
+            0.124999999999999958366637,
+            0.120000000000000023314684,
+            0.114999999999999991118216,
+            0.109999999999999917288385,
+            0.104999999999999982236432,
+            0.099999999999999963917752,
+            0.095000000000000098254738,
+            0.093000000000000040967230,
+            0.091999999999999984567900,
+            0.093000000000000068722805,
+            0.096000000000000001998401,
+            0.108000000000000082045482,
+            0.155999999999999805488926,
+            0.265000000000000013322676,
+            0.399000000000000465405492,
+            0.499999999999999777955395,
+            0.556000000000000271782596,
+            0.578999999999999959143793,
+            0.588000000000000189182003,
+            0.591000000000000191846539,
+            0.593000000000000082600593,
+            0.594000000000000083488771,
+            0.597999999999999753974578,
+            0.601999999999999979571896,
+            0.607000000000000206057393,
+            0.609000000000000207833750,
+            0.609000000000000540900658,
+            0.609999999999999875655021,
+            0.609999999999999875655021,
+            0.609999999999999875655021,
+            0.609999999999999875655021,
+            0.609999999999999875655021,
+        ]),
+        "purple".into() => SPD::new([
+            0.091999999999999929056749,
+            0.116000000000000103028697,
+            0.145999999999999990896171,
+            0.168999999999999789279670,
+            0.178000000000000074829032,
+            0.172999999999999848343535,
+            0.158000000000000084821039,
+            0.139000000000000123456800,
+            0.119000000000000036304293,
+            0.101000000000000048072657,
+            0.087000000000000021760371,
+            0.075000000000000052735594,
+            0.065999999999999947597473,
+            0.060000000000000032474023,
+            0.056000000000000056676885,
+            0.052999999999999949928942,
+            0.050999999999999989785948,
+            0.050999999999999955091479,
+            0.051999999999999997613020,
+            0.052000000000000011490808,
+            0.050999999999999955091479,
+            0.052000000000000004551914,
+            0.057999999999999989064303,
+            0.072999999999999967692510,
+            0.095999999999999974242826,
+            0.118999999999999994670929,
+            0.140999999999999986455279,
+            0.166000000000000091926466,
+            0.193999999999999950262008,
+            0.226999999999999868549594,
+            0.265000000000000235367281,
+            0.308999999999999663824468,
+            0.355000000000000148769885,
+            0.396000000000000240696352,
+            0.435999999999999776623127,
+            0.477999999999999924948924,
+            0.477999999999999924948924,
+            0.477999999999999924948924,
+            0.477999999999999924948924,
+            0.477999999999999924948924,
+        ]),
+        "yellow_green".into() => SPD::new([
+            0.061000000000000040301096,
+            0.060999999999999984789945,
+            0.061999999999999992617017,
+            0.063000000000000028199665,
+            0.064000000000000001332268,
+            0.065999999999999975353049,
+            0.069000000000000033528735,
+            0.075000000000000066613381,
+            0.084999999999999964472863,
+            0.105000000000000037747583,
+            0.138999999999999984678922,
+            0.192000000000000087263530,
+            0.271000000000000407229805,
+            0.375999999999999834354725,
+            0.475999999999999645616811,
+            0.531000000000000138555833,
+            0.549000000000000154543045,
+            0.545999999999999596766997,
+            0.527999999999999469757483,
+            0.504000000000000114575016,
+            0.470999999999999752198221,
+            0.427999999999999880540003,
+            0.380999999999999894306768,
+            0.346999999999999753086399,
+            0.326999999999999846345133,
+            0.317999999999999838351528,
+            0.311999999999999555466701,
+            0.310000000000000053290705,
+            0.314000000000000056843419,
+            0.327000000000000012878587,
+            0.345000000000000195399252,
+            0.362999999999999822808405,
+            0.375999999999999889865876,
+            0.380999999999999949817919,
+            0.378000000000000058175686,
+            0.378999999999999781508109,
+            0.378999999999999781508109,
+            0.378999999999999781508109,
+            0.378999999999999781508109,
+            0.378999999999999781508109,
+        ]),
+        "orange_yellow".into() => SPD::new([
+            0.062999999999999972688514,
+            0.063000000000000000444089,
+            0.062999999999999972688514,
+            0.063999999999999973576692,
+            0.063999999999999973576692,
+            0.064000000000000042965631,
+            0.064999999999999946709295,
+            0.065999999999999947597473,
+            0.067000000000000059507954,
+            0.067999999999999991007194,
+            0.071000000000000063060668,
+            0.076000000000000039745984,
+            0.087000000000000049515947,
+            0.125000000000000000000000,
+            0.206000000000000127453603,
+            0.305000000000000048849813,
+            0.382999999999999785060822,
+            0.430999999999999883204538,
+            0.468999999999999916955318,
+            0.517999999999999904964909,
+            0.568000000000000504485342,
+            0.606999999999999872990486,
+            0.627999999999999891642233,
+            0.637000000000000232702746,
+            0.639999999999999902300374,
+            0.641999999999999793054428,
+            0.644999999999999462652056,
+            0.647999999999999465316591,
+            0.651000000000000134114941,
+            0.652999999999999247712879,
+            0.657000000000000361488617,
+            0.664000000000000811795076,
+            0.673000000000000708766379,
+            0.679999999999999715782906,
+            0.684000000000000385469434,
+            0.687999999999999833910636,
+            0.687999999999999833910636,
+            0.687999999999999833910636,
+            0.687999999999999833910636,
+            0.687999999999999833910636,
+        ]),
+        "blue".into() => SPD::new([
+            0.065999999999999975353049,
+            0.079000000000000084043883,
+            0.101999999999999951816321,
+            0.145999999999999990896171,
+            0.200000000000000038857806,
+            0.244000000000000022426505,
+            0.282000000000000028421709,
+            0.308999999999999941380224,
+            0.307999999999999940492046,
+            0.278000000000000191402449,
+            0.231000000000000094146912,
+            0.177999999999999963806729,
+            0.129999999999999893418590,
+            0.093999999999999944710893,
+            0.069999999999999951150187,
+            0.054000000000000006328271,
+            0.046000000000000033917313,
+            0.042000000000000051181281,
+            0.038999999999999993005595,
+            0.038000000000000005995204,
+            0.037999999999999999056310,
+            0.038000000000000026811886,
+            0.038000000000000033750780,
+            0.039000000000000013822277,
+            0.038999999999999986066701,
+            0.039999999999999980015986,
+            0.040999999999999987843058,
+            0.042000000000000009547918,
+            0.044000000000000025202063,
+            0.044999999999999984456878,
+            0.046000000000000033917313,
+            0.046000000000000033917313,
+            0.048000000000000014876989,
+            0.052000000000000039246384,
+            0.056999999999999988176125,
+            0.065000000000000002220446,
+            0.065000000000000002220446,
+            0.065000000000000002220446,
+            0.065000000000000002220446,
+            0.065000000000000002220446,
+        ]),
+        "green".into() => SPD::new([
+            0.051999999999999990674127,
+            0.052999999999999991562305,
+            0.054000000000000034083847,
+            0.054999999999999986399768,
+            0.056999999999999995115019,
+            0.059000000000000003830269,
+            0.060999999999999943156581,
+            0.065999999999999961475261,
+            0.075000000000000052735594,
+            0.092999999999999985456078,
+            0.124999999999999902855485,
+            0.177999999999999991562305,
+            0.246000000000000079714013,
+            0.307000000000000106137321,
+            0.337000000000000188293825,
+            0.333999999999999852562382,
+            0.316999999999999948485652,
+            0.292999999999999816147067,
+            0.262000000000000343725048,
+            0.230000000000000037747583,
+            0.198000000000000120348176,
+            0.164999999999999980015986,
+            0.135000000000000036637360,
+            0.114999999999999991118216,
+            0.103999999999999981348253,
+            0.097999999999999976019183,
+            0.093999999999999986344257,
+            0.091999999999999984567900,
+            0.093000000000000068722805,
+            0.096999999999999975131004,
+            0.101999999999999896305170,
+            0.107999999999999984900967,
+            0.113000000000000044853010,
+            0.115000000000000004996004,
+            0.113999999999999934718886,
+            0.113999999999999976352250,
+            0.113999999999999976352250,
+            0.113999999999999976352250,
+            0.113999999999999976352250,
+            0.113999999999999976352250,
+        ]),
+        "red".into() => SPD::new([
+            0.049999999999999988897770,
+            0.049000000000000036581849,
+            0.048000000000000021815882,
+            0.046999999999999986233234,
+            0.046999999999999979294341,
+            0.046999999999999979294341,
+            0.046999999999999951538765,
+            0.046999999999999958477659,
+            0.045999999999999978406162,
+            0.044999999999999984456878,
+            0.043999999999999990507593,
+            0.044000000000000018263169,
+            0.044999999999999998334665,
+            0.046000000000000020039526,
+            0.047000000000000013988810,
+            0.047999999999999987121413,
+            0.049000000000000001887379,
+            0.049999999999999981958876,
+            0.054000000000000047961635,
+            0.059999999999999983901766,
+            0.071999999999999939048756,
+            0.103999999999999995226041,
+            0.178000000000000047073456,
+            0.311999999999999777511306,
+            0.467000000000000026201263,
+            0.580999999999999516830940,
+            0.643999999999999683808483,
+            0.674999999999999933386619,
+            0.690000000000000834887715,
+            0.698000000000000175859327,
+            0.705999999999999405808637,
+            0.714999999999999968913755,
+            0.723999999999999532818151,
+            0.730000000000000426325641,
+            0.734000000000001096012170,
+            0.737999999999999545252649,
+            0.737999999999999545252649,
+            0.737999999999999545252649,
+            0.737999999999999545252649,
+            0.737999999999999545252649,
+        ]),
+        "yellow".into() => SPD::new([
+            0.057999999999999996003197,
+            0.053999999999999999389377,
+            0.052000000000000025368596,
+            0.052000000000000011490808,
+            0.052999999999999970745623,
+            0.054000000000000006328271,
+            0.056000000000000021982416,
+            0.058999999999999969135800,
+            0.067000000000000045630166,
+            0.080999999999999947042362,
+            0.106999999999999984012788,
+            0.151999999999999968469666,
+            0.224999999999999922284388,
+            0.336000000000000242916798,
+            0.462000000000000132782674,
+            0.559000000000000274447132,
+            0.616000000000000214050999,
+            0.649999999999999689137553,
+            0.672000000000000707878201,
+            0.693999999999999950262008,
+            0.710000000000000186517468,
+            0.723000000000000087041485,
+            0.731000000000000427213820,
+            0.739000000000000101252340,
+            0.745999999999999774402681,
+            0.751999999999999668709449,
+            0.757999999999999451993915,
+            0.763999999999999457322986,
+            0.768999999999998684607760,
+            0.771000000000000351718654,
+            0.776000000000000023092639,
+            0.781999999999999806377105,
+            0.789999999999999813482532,
+            0.796000000000000262900812,
+            0.798999999999999599431533,
+            0.803999999999999714894727,
+            0.803999999999999714894727,
+            0.803999999999999714894727,
+            0.803999999999999714894727,
+            0.803999999999999714894727,
+        ]),
+        "magenta".into() => SPD::new([
+            0.144999999999999878985690,
+            0.195000000000000200950367,
+            0.282999999999999807265283,
+            0.346000000000000029753977,
+            0.361999999999999988453681,
+            0.354000000000000036859404,
+            0.333999999999999963584685,
+            0.305999999999999716671084,
+            0.276000000000000023092639,
+            0.248000000000000137001521,
+            0.217999999999999971578291,
+            0.190000000000000168753900,
+            0.168000000000000121458399,
+            0.149000000000000021316282,
+            0.127000000000000057287508,
+            0.106999999999999956257213,
+            0.099999999999999963917752,
+            0.102000000000000021205260,
+            0.103999999999999981348253,
+            0.108999999999999958033570,
+            0.137000000000000093924868,
+            0.199999999999999983346655,
+            0.290000000000000035527137,
+            0.400000000000000299760217,
+            0.516000000000000236255460,
+            0.614999999999999769073611,
+            0.687000000000000277111667,
+            0.732000000000000095035091,
+            0.759999999999999786837179,
+            0.774000000000000576427794,
+            0.783000000000000362376795,
+            0.792999999999999705124765,
+            0.803000000000000491162666,
+            0.812000000000000610178574,
+            0.817000000000000170530257,
+            0.824999999999999733546474,
+            0.824999999999999733546474,
+            0.824999999999999733546474,
+            0.824999999999999733546474,
+            0.824999999999999733546474,
+        ]),
+        "cyan".into() => SPD::new([
+            0.108000000000000026534330,
+            0.140999999999999958699703,
+            0.192000000000000031752379,
+            0.236000000000000070832229,
+            0.260999999999999787725358,
+            0.285999999999999976463272,
+            0.316999999999999726441047,
+            0.352999999999999813926621,
+            0.390000000000000068833828,
+            0.426000000000000045297099,
+            0.445999999999999896527214,
+            0.444000000000000061284311,
+            0.423000000000000042632564,
+            0.385000000000000008881784,
+            0.336999999999999966249220,
+            0.282999999999999862776434,
+            0.230999999999999927613459,
+            0.184999999999999747979373,
+            0.145999999999999990896171,
+            0.117999999999999855004873,
+            0.100999999999999978683718,
+            0.089999999999999913402604,
+            0.082000000000000017319479,
+            0.076000000000000039745984,
+            0.073999999999999968580688,
+            0.072999999999999981570298,
+            0.072999999999999967692510,
+            0.073999999999999954702901,
+            0.076000000000000039745984,
+            0.077000000000000012878587,
+            0.076000000000000025868196,
+            0.075000000000000066613381,
+            0.072999999999999953814722,
+            0.071999999999999994559907,
+            0.073999999999999968580688,
+            0.079000000000000084043883,
+            0.079000000000000084043883,
+            0.079000000000000084043883,
+            0.079000000000000084043883,
+            0.079000000000000084043883,
+        ]),
+        "white_95".into() => SPD::new([
+            0.188999999999999501731907,
+            0.255000000000000059952043,
+            0.423000000000000209166018,
+            0.660000000000000142108547,
+            0.811000000000000498268093,
+            0.861999999999999544364471,
+            0.876999999999999113597937,
+            0.884000000000000230038211,
+            0.890999999999999348077040,
+            0.896000000000000573763259,
+            0.899000000000000354383189,
+            0.904000000000000247801779,
+            0.906999999999999584332500,
+            0.909000000000000252242671,
+            0.911000000000000587085935,
+            0.909999999999999698019337,
+            0.911000000000000587085935,
+            0.914000000000000256683563,
+            0.912999999999999922728477,
+            0.916000000000000702549130,
+            0.915000000000000035527137,
+            0.916000000000000369482223,
+            0.914000000000000922817378,
+            0.915000000000000035527137,
+            0.918000000000000038191672,
+            0.919000000000000594191363,
+            0.921000000000000262900812,
+            0.923000000000000708766379,
+            0.924000000000000043520743,
+            0.921999999999999819699781,
+            0.922000000000000485833596,
+            0.925000000000000488498131,
+            0.927000000000000268229883,
+            0.930000000000000048849813,
+            0.929999999999999715782906,
+            0.933000000000000717648163,
+            0.933000000000000717648163,
+            0.933000000000000717648163,
+            0.933000000000000717648163,
+            0.933000000000000717648163,
+        ]),
+        "neutral_80".into() => SPD::new([
+            0.171000000000000096367359,
+            0.232000000000000122790667,
+            0.364999999999999880095913,
+            0.507000000000000117239551,
+            0.566999999999999504396442,
+            0.582999999999999296562692,
+            0.588000000000000522248911,
+            0.589999999999999635846848,
+            0.590999999999999747757329,
+            0.589999999999999857891453,
+            0.587999999999999856115096,
+            0.588000000000000189182003,
+            0.588999999999999634958670,
+            0.588999999999999745980972,
+            0.591000000000000302868841,
+            0.589999999999999857891453,
+            0.589999999999999413802243,
+            0.589999999999999635846848,
+            0.588999999999999301891762,
+            0.591000000000000413891144,
+            0.590000000000000079936058,
+            0.589999999999999413802243,
+            0.586999999999999522160010,
+            0.585000000000000186517468,
+            0.582999999999999740651901,
+            0.579999999999999626965064,
+            0.578000000000000069277917,
+            0.575999999999999734434653,
+            0.574000000000000176747506,
+            0.571999999999999841904241,
+            0.570999999999999841016063,
+            0.568999999999999395150496,
+            0.567999999999999838351528,
+            0.568000000000000504485342,
+            0.565999999999999725552868,
+            0.565999999999999614530566,
+            0.565999999999999614530566,
+            0.565999999999999614530566,
+            0.565999999999999614530566,
+            0.565999999999999614530566,
+        ]),
+        "neutral_65".into() => SPD::new([
+            0.144000000000000016875390,
+            0.191999999999999976241227,
+            0.272000000000000352606833,
+            0.330999999999999849897847,
+            0.350000000000000088817842,
+            0.356999999999999539923579,
+            0.361000000000000431654712,
+            0.362999999999999767297254,
+            0.362999999999999767297254,
+            0.361000000000000209610107,
+            0.358999999999999874766843,
+            0.357999999999999984900967,
+            0.358000000000000040412118,
+            0.359000000000000041300297,
+            0.359999999999999875655021,
+            0.359999999999999986677324,
+            0.361000000000000376143561,
+            0.361000000000000043076653,
+            0.359999999999999820143870,
+            0.361999999999999988453681,
+            0.362000000000000099475983,
+            0.361000000000000542677014,
+            0.358999999999999652722238,
+            0.357999999999999707345211,
+            0.354999999999999926725280,
+            0.352000000000000090594199,
+            0.350000000000000088817842,
+            0.347999999999999809485729,
+            0.345000000000000306421555,
+            0.343000000000000193622895,
+            0.339999999999999913402604,
+            0.338000000000000078159701,
+            0.335000000000000242028619,
+            0.333999999999999630517777,
+            0.332000000000000350386387,
+            0.330999999999999849897847,
+            0.330999999999999849897847,
+            0.330999999999999849897847,
+            0.330999999999999849897847,
+            0.330999999999999849897847,
+        ]),
+        "neutral_50".into() => SPD::new([
+            0.105000000000000009992007,
+            0.131000000000000005329071,
+            0.163000000000000005995204,
+            0.179999999999999854560784,
+            0.185999999999999998667732,
+            0.190000000000000029976022,
+            0.192999999999999838351528,
+            0.194000000000000033528735,
+            0.193999999999999922506433,
+            0.191999999999999948485652,
+            0.191000000000000058619776,
+            0.190999999999999864330746,
+            0.190999999999999864330746,
+            0.191999999999999865218925,
+            0.192000000000000059507954,
+            0.192000000000000087263530,
+            0.192000000000000059507954,
+            0.192000000000000087263530,
+            0.192000000000000087263530,
+            0.192999999999999949373830,
+            0.192000000000000087263530,
+            0.192000000000000115019105,
+            0.191000000000000058619776,
+            0.188999999999999862554390,
+            0.187999999999999972688514,
+            0.185999999999999970912157,
+            0.184000000000000052402527,
+            0.182000000000000244915199,
+            0.180999999999999855448962,
+            0.179000000000000075717210,
+            0.177999999999999963806729,
+            0.175999999999999878763646,
+            0.174000000000000126787469,
+            0.173000000000000042632564,
+            0.171999999999999958477659,
+            0.170999999999999985345056,
+            0.170999999999999985345056,
+            0.170999999999999985345056,
+            0.170999999999999985345056,
+            0.170999999999999985345056,
+        ]),
+        "neutral_35".into() => SPD::new([
+            0.068000000000000032640557,
+            0.077000000000000012878587,
+            0.084000000000000005218048,
+            0.087000000000000049515947,
+            0.089000000000000023536728,
+            0.089999999999999941158180,
+            0.092000000000000012323476,
+            0.092000000000000067834627,
+            0.091000000000000080824236,
+            0.089999999999999941158180,
+            0.089999999999999996669331,
+            0.089999999999999968913755,
+            0.089999999999999968913755,
+            0.089999999999999968913755,
+            0.089999999999999968913755,
+            0.089999999999999968913755,
+            0.089999999999999968913755,
+            0.089999999999999968913755,
+            0.089999999999999968913755,
+            0.089999999999999982791543,
+            0.089999999999999927280392,
+            0.088999999999999968025577,
+            0.088999999999999940270001,
+            0.087999999999999953259611,
+            0.087000000000000077271523,
+            0.086000000000000006994405,
+            0.085999999999999965361042,
+            0.084999999999999964472863,
+            0.084000000000000060729199,
+            0.084000000000000019095836,
+            0.083000000000000045963233,
+            0.082999999999999990452082,
+            0.081999999999999920174965,
+            0.080999999999999974797937,
+            0.080999999999999960920150,
+            0.080999999999999933164574,
+            0.080999999999999933164574,
+            0.080999999999999933164574,
+            0.080999999999999933164574,
+            0.080999999999999933164574,
+        ]),
+        "black_20".into() => SPD::new([
+            0.030999999999999999777955,
+            0.032000000000000014543922,
+            0.032000000000000000666134,
+            0.032999999999999959920949,
+            0.032999999999999966859843,
+            0.032999999999999987676524,
+            0.033000000000000001554312,
+            0.033000000000000001554312,
+            0.032000000000000035360603,
+            0.032000000000000014543922,
+            0.032000000000000000666134,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.031999999999999986788346,
+            0.032999999999999973798737,
+            0.032999999999999973798737,
+            0.032999999999999973798737,
+            0.032999999999999973798737,
+            0.032999999999999973798737,
+        ]),
+    };
 }

@@ -1,71 +1,83 @@
 //! XYZ color type
 
-use super::chromaticity::xyY;
-use super::math::*;
-use super::traits::*;
+use super::chromaticity::XYY;
 use std::convert::From;
 use std::fmt;
-use std::ops::{AddAssign, Index, IndexMut};
+use std::ops::{AddAssign, Index, IndexMut, Add, Sub, Mul, Div, Neg};
+use num_traits::{Bounded, One, Zero};
+use float_cmp::{F32Margin, F64Margin, ApproxEq};
+
+use crate::math::Real;
+
+pub type XYZf32 = XYZ<f32>;
+pub type XYZf64 = XYZ<f64>;
 
 /// XYZ color type
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd, Default)]
-pub struct XYZ {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
+pub struct XYZ<T> where T: Real {
+    pub x: T,
+    pub y: T,
+    pub z: T,
 }
 
-impl XYZ {
-    pub fn new(x: f32, y: f32, z: f32) -> XYZ {
-        XYZ { x, y, z }
+impl<T> XYZ<T>  where T: Real {
+    pub fn new(x: T, y: T, z: T) -> XYZ<T> {
+        XYZ::<T> { x, y, z }
     }
 
-    pub fn from_scalar(a: f32) -> XYZ {
-        XYZ { x: a, y: a, z: a }
-    }
-
-    /// Returns true if self and v are equal with error no greater than e
-    pub fn equal_with_abs_error(self, v: XYZ, e: f32) -> bool {
-        equal_with_abs_error(self.x, v.x, e)
-            && equal_with_abs_error(self.y, v.y, e)
-            && equal_with_abs_error(self.z, v.z, e)
-    }
-
-    /// Returns true if self and v are equal with error no greater than e
-    pub fn equal_with_rel_error(self, v: XYZ, e: f32) -> bool {
-        equal_with_rel_error(self.x, v.x, e)
-            && equal_with_rel_error(self.y, v.y, e)
-            && equal_with_rel_error(self.z, v.z, e)
+    pub fn from_scalar(a: T) -> XYZ<T> {
+        XYZ::<T> { x: a, y: a, z: a }
     }
 
     /// Returns a unit-luminance version of this color.
-    pub fn normalized(&self) -> XYZ {
-        *self / self.y
+    pub fn normalized(&self) -> XYZ<T>  {
+        *self / Self::from_scalar(self.y)
     }
-}
 
-impl XYZ {
-    /// Creates a new XYZ from the given `xyY` coordinates
-    #[allow(non_snake_case)]
-    pub fn from_chromaticity(c: xyY) -> XYZ {
-        XYZ {
-            x: c.x * c.Y / c.y,
-            y: c.Y,
-            z: (1.0 - c.x - c.y) * c.Y / c.y,
+    pub fn abs(&self) -> XYZ<T> {
+        XYZ::<T> {
+            x: self.x.abs(),
+            y: self.y.abs(),
+            z: self.z.abs(),
         }
     }
 }
 
-impl From<xyY> for XYZ {
-    fn from(c: xyY) -> XYZ {
+pub fn xyz<T>(x: T, y: T, z: T) -> XYZ<T> where T: Real {
+    XYZ::new(x, y, z)
+}
+
+impl<T> XYZ<T> where T: Real + One {
+    /// Creates a new XYZ from the given `xyY` coordinates
+    #[allow(non_snake_case)]
+    pub fn from_chromaticity(c: XYY<T>) -> XYZ<T> {
+        XYZ::<T> {
+            x: c.x * c.Y / c.y,
+            y: c.Y,
+            z: (T::one() - c.x - c.y) * c.Y / c.y,
+        } * T::from(100.0).unwrap()
+    }
+
+    pub fn from_xy(x: T, y: T) -> XYZ<T> {
+        Self::from_chromaticity(XYY::new(x, y, T::one()))  
+    }
+
+    pub fn normalized_y(&self) -> XYZ<T> {
+        (*self) / self.y * T::from(100.0).unwrap()
+    }
+
+}
+
+impl<T> From<XYY<T>> for XYZ<T> where T: Real {
+    fn from(c: XYY<T>) -> XYZ<T> {
         XYZ::from_chromaticity(c)
     }
 }
 
-impl Zero for XYZ {
-    fn zero() -> XYZ {
-        XYZ::from_scalar(0.0)
+impl<T> Zero for XYZ<T> where T: Real {
+    fn zero() -> XYZ<T> {
+        XYZ::from_scalar(T::zero())
     }
 
     fn is_zero(&self) -> bool {
@@ -73,65 +85,107 @@ impl Zero for XYZ {
     }
 }
 
-impl One for XYZ {
-    fn one() -> XYZ {
-        XYZ::from_scalar(1.0)
+impl<T> One for XYZ<T> where T: Real {
+    fn one() -> XYZ<T> {
+        XYZ::from_scalar(T::one())
     }
 }
 
-impl Bounded for XYZ {
-    fn min_value() -> XYZ {
-        XYZ {
-            x: std::f32::MIN,
-            y: std::f32::MIN,
-            z: std::f32::MIN,
+impl<T> Bounded for XYZ<T> where T: Real {
+    fn min_value() -> XYZ<T> {
+        XYZ::<T> {
+            x: Bounded::min_value(),
+            y: Bounded::min_value(),
+            z: Bounded::min_value(),
         }
     }
-    fn max_value() -> XYZ {
-        XYZ {
-            x: std::f32::MAX,
-            y: std::f32::MAX,
-            z: std::f32::MAX,
+    fn max_value() -> XYZ<T> {
+        XYZ::<T> {
+            x: Bounded::max_value(),
+            y: Bounded::max_value(),
+            z: Bounded::max_value(),
         }
     }
 }
 
-impl Index<usize> for XYZ {
-    type Output = f32;
+impl<T> Index<usize> for XYZ<T> where T: Real {
+    type Output = T;
 
-    fn index(&self, i: usize) -> &f32 {
+    fn index(&self, i: usize) -> &T {
         match i {
             0 => &self.x,
             1 => &self.y,
             2 => &self.z,
-            _ => panic!("Tried to access XYZf with index of {}", i),
+            _ => panic!("Tried to access XYZ with index of {}", i),
         }
     }
 }
 
-impl IndexMut<usize> for XYZ {
-    fn index_mut(&mut self, i: usize) -> &mut f32 {
+impl<T> IndexMut<usize> for XYZ<T> where T: Real {
+    fn index_mut(&mut self, i: usize) -> &mut T {
         match i {
             0 => &mut self.x,
             1 => &mut self.y,
             2 => &mut self.z,
-            _ => panic!("Tried to access XYZf with index of {}", i),
+            _ => panic!("Tried to access XYZ with index of {}", i),
         }
     }
 }
 
-impl fmt::Display for XYZ {
+impl<T> fmt::Display for XYZ<T> where T: Real {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({}, {}, {})", self.x, self.y, self.z)
     }
 }
 
-/// Addition operator
-impl Add for XYZ {
-    type Output = XYZ;
 
-    fn add(self, rhs: XYZ) -> XYZ {
+impl ApproxEq for XYZf32 {
+    type Margin = F32Margin;
+    fn approx_eq<T: Into<Self::Margin>>(self, other: Self, margin: T) -> bool {
+        let margin = margin.into();
+        self.x.approx_eq(other.x, margin) 
+        && self.y.approx_eq(other.y, margin)
+        && self.z.approx_eq(other.z, margin)
+    }
+}
+
+impl ApproxEq for XYZf64 {
+    type Margin = F64Margin;
+    fn approx_eq<T: Into<Self::Margin>>(self, other: Self, margin: T) -> bool {
+        let margin = margin.into();
+        self.x.approx_eq(other.x, margin) 
+        && self.y.approx_eq(other.y, margin)
+        && self.z.approx_eq(other.z, margin)
+    }
+}
+
+impl From<XYZf64> for XYZf32 {
+    fn from(x: XYZf64) -> XYZf32 {
         XYZ {
+            x: x.x as f32,
+            y: x.y as f32,
+            z: x.z as f32,
+        }
+    }
+}
+
+impl std::iter::Sum for XYZf32 {
+    fn sum<I>(iter: I) -> XYZf32 where I: Iterator<Item=XYZf32> {
+        let mut xyz = XYZf32::from_scalar(0.0);
+        for i in iter {
+            xyz += i;
+        }
+
+        xyz
+    }
+}
+
+/// Addition operator
+impl<T> Add for XYZ<T> where T: Real {
+    type Output = XYZ<T>;
+
+    fn add(self, rhs: XYZ<T>) -> XYZ<T> {
+        XYZ::<T> {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
             z: self.z + rhs.z,
@@ -139,9 +193,9 @@ impl Add for XYZ {
     }
 }
 
-impl AddAssign for XYZ {
-    fn add_assign(&mut self, rhs: XYZ) {
-        *self = XYZ {
+impl<T> AddAssign for XYZ<T> where T: Real {
+    fn add_assign(&mut self, rhs: XYZ<T>) {
+        *self = XYZ::<T> {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
             z: self.z + rhs.z,
@@ -150,11 +204,11 @@ impl AddAssign for XYZ {
 }
 
 /// Subtraction operator
-impl Sub for XYZ {
-    type Output = XYZ;
+impl<T> Sub for XYZ<T> where T: Real {
+    type Output = XYZ<T>;
 
-    fn sub(self, rhs: XYZ) -> XYZ {
-        XYZ {
+    fn sub(self, rhs: XYZ<T>) -> XYZ<T> {
+        XYZ::<T> {
             x: self.x - rhs.x,
             y: self.y - rhs.y,
             z: self.z - rhs.z,
@@ -163,11 +217,11 @@ impl Sub for XYZ {
 }
 
 /// Multiplication operator
-impl Mul for XYZ {
-    type Output = XYZ;
+impl<T> Mul for XYZ<T> where T: Real {
+    type Output = XYZ<T>;
 
-    fn mul(self, rhs: XYZ) -> XYZ {
-        XYZ {
+    fn mul(self, rhs: XYZ<T>) -> XYZ<T> {
+        XYZ::<T> {
             x: self.x * rhs.x,
             y: self.y * rhs.y,
             z: self.z * rhs.z,
@@ -176,11 +230,11 @@ impl Mul for XYZ {
 }
 
 /// Division operator
-impl Div for XYZ {
-    type Output = XYZ;
+impl<T> Div for XYZ<T> where T: Real {
+    type Output = XYZ<T>;
 
-    fn div(self, rhs: XYZ) -> XYZ {
-        XYZ {
+    fn div(self, rhs: XYZ<T>) -> XYZ<T> {
+        XYZ::<T> {
             x: self.x / rhs.x,
             y: self.y / rhs.y,
             z: self.z / rhs.z,
@@ -189,11 +243,11 @@ impl Div for XYZ {
 }
 
 /// Unary negation
-impl Neg for XYZ {
-    type Output = XYZ;
+impl<T> Neg for XYZ<T> where T: Real {
+    type Output = XYZ<T>;
 
-    fn neg(self) -> XYZ {
-        XYZ {
+    fn neg(self) -> XYZ<T> {
+        XYZ::<T> {
             x: -self.x,
             y: -self.y,
             z: -self.z,
@@ -202,11 +256,11 @@ impl Neg for XYZ {
 }
 
 /// Multiplication by a f32
-impl Mul<f32> for XYZ {
-    type Output = XYZ;
+impl<T> Mul<T> for XYZ<T> where T:Real {
+    type Output = XYZ<T>;
 
-    fn mul(self, rhs: f32) -> XYZ {
-        XYZ {
+    fn mul(self, rhs: T) -> XYZ<T> {
+        XYZ::<T> {
             x: self.x * rhs,
             y: self.y * rhs,
             z: self.z * rhs,
@@ -214,12 +268,12 @@ impl Mul<f32> for XYZ {
     }
 }
 
-/// Division by a f32
-impl Div<f32> for XYZ {
-    type Output = XYZ;
+/// Division by a T
+impl<T> Div<T> for XYZ<T> where T: Real {
+    type Output = XYZ<T>;
 
-    fn div(self, rhs: f32) -> XYZ {
-        XYZ {
+    fn div(self, rhs: T) -> XYZ<T> {
+        XYZ::<T> {
             x: self.x / rhs,
             y: self.y / rhs,
             z: self.z / rhs,
@@ -227,12 +281,12 @@ impl Div<f32> for XYZ {
     }
 }
 
-/// Addition by a f32
-impl Add<f32> for XYZ {
-    type Output = XYZ;
+/// Addition by a T
+impl<T> Add<T> for XYZ<T> where T: Real {
+    type Output = XYZ<T>;
 
-    fn add(self, rhs: f32) -> XYZ {
-        XYZ {
+    fn add(self, rhs: T) -> XYZ<T> {
+        XYZ::<T> {
             x: self.x + rhs,
             y: self.y + rhs,
             z: self.z + rhs,
@@ -240,59 +294,15 @@ impl Add<f32> for XYZ {
     }
 }
 
-/// Subtraction by a f32
-impl Sub<f32> for XYZ {
-    type Output = XYZ;
+/// Subtraction by a T
+impl<T> Sub<T> for XYZ<T> where T: Real {
+    type Output = XYZ<T>;
 
-    fn sub(self, rhs: f32) -> XYZ {
-        XYZ {
+    fn sub(self, rhs: T) -> XYZ<T> {
+        XYZ::<T> {
             x: self.x - rhs,
             y: self.y - rhs,
             z: self.z - rhs,
-        }
-    }
-}
-
-impl Mul<XYZ> for f32 {
-    type Output = XYZ;
-    fn mul(self, rhs: XYZ) -> XYZ {
-        XYZ {
-            x: self * rhs.x,
-            y: self * rhs.y,
-            z: self * rhs.z,
-        }
-    }
-}
-
-impl Add<XYZ> for f32 {
-    type Output = XYZ;
-    fn add(self, rhs: XYZ) -> XYZ {
-        XYZ {
-            x: self + rhs.x,
-            y: self + rhs.y,
-            z: self + rhs.z,
-        }
-    }
-}
-
-impl Div<XYZ> for f32 {
-    type Output = XYZ;
-    fn div(self, rhs: XYZ) -> XYZ {
-        XYZ {
-            x: self / rhs.x,
-            y: self / rhs.y,
-            z: self / rhs.z,
-        }
-    }
-}
-
-impl Sub<XYZ> for f32 {
-    type Output = XYZ;
-    fn sub(self, rhs: XYZ) -> XYZ {
-        XYZ {
-            x: self - rhs.x,
-            y: self - rhs.y,
-            z: self - rhs.z,
         }
     }
 }

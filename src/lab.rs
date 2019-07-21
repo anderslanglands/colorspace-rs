@@ -4,48 +4,53 @@
 use super::math::*;
 use super::xyz::*;
 
+use numeric_literals::replace_float_literals;
+
 /// Lab colour value
-#[repr(C, packed)]
+#[repr(C)]
 #[derive(Copy, Clone, Debug)]
 #[allow(non_snake_case)]
-pub struct Lab {
-    pub L: f32,
-    pub a: f32,
-    pub b: f32,
+pub struct Lab<T> where T: Real {
+    pub L: T,
+    pub a: T,
+    pub b: T,
 }
 
 /// Short constructor for a Lab
 #[allow(non_snake_case)]
-pub fn lab(L: f32, a: f32, b: f32) -> Lab {
+pub fn lab<T>(L: T, a: T, b: T) -> Lab<T> where T: Real{
     Lab { L, a, b }
 }
 
 /// Convert an XYZ color to a Lab colour with the given reference white.
-/// Lab colours are normally specified realtive to D50, so if your XYZ is
+/// Lab colours are normally specified relative to D50, so if your XYZ is
 /// relative to something else, you might want to convert it first using the
 /// chromatic_adaptation module.
-pub fn xyz_to_lab(xyz: XYZ, ref_white: XYZ) -> Lab {
+#[replace_float_literals(T::from(literal).unwrap())]
+pub fn xyz_to_lab<T, X1: Into<XYZ<T>>, X2: Into<XYZ<T>> >(xyz: X1, ref_white: X2) -> Lab<T> where T: Real {
+    let xyz: XYZ<T> = xyz.into();
+    let ref_white: XYZ<T> = ref_white.into();
     let xyz_r = xyz / ref_white;
 
-    const EPSILON: f32 = 216.0 / 24389.0;
-    const KAPPA: f32 = 24389.0 / 27.0;
+    let epsilon = 216.0 / 24389.0;
+    let kappa = 24389.0 / 27.0;
 
-    let f_x = if xyz_r.x > EPSILON {
+    let f_x = if xyz_r.x > epsilon {
         xyz_r.x.powf(1.0 / 3.0)
     } else {
-        (KAPPA * xyz_r.x + 16.0) / 116.0
+        (kappa * xyz_r.x + 16.0) / 116.0
     };
 
-    let f_y = if xyz_r.y > EPSILON {
+    let f_y = if xyz_r.y > epsilon {
         xyz_r.y.powf(1.0 / 3.0)
     } else {
-        (KAPPA * xyz_r.y + 16.0) / 116.0
+        (kappa * xyz_r.y + 16.0) / 116.0
     };
 
-    let f_z = if xyz_r.z > EPSILON {
+    let f_z = if xyz_r.z > epsilon {
         xyz_r.z.powf(1.0 / 3.0)
     } else {
-        (KAPPA * xyz_r.z + 16.0) / 116.0
+        (kappa * xyz_r.z + 16.0) / 116.0
     };
 
     lab(116.0 * f_y - 16.0, 500.0 * (f_x - f_y), 200.0 * (f_y - f_z))
@@ -54,8 +59,9 @@ pub fn xyz_to_lab(xyz: XYZ, ref_white: XYZ) -> Lab {
 /// Compute the difference between two L*a*b* colors according to the CIE 1976
 /// formula.
 #[allow(non_snake_case)]
-pub fn delta_E_1976(c1: Lab, c2: Lab) -> f32 {
-    sqrt((c1.L - c2.L).powi(2) + (c1.a - c2.a).powi(2) + (c1.b - c2.b).powi(2))
+#[replace_float_literals(T::from(literal).unwrap())]
+pub fn delta_E_1976<T>(c1: Lab<T>, c2: Lab<T>) -> T where T: Real {
+    ((c1.L - c2.L).powi(2) + (c1.a - c2.a).powi(2) + (c1.b - c2.b).powi(2)).sqrt()
 }
 
 /// Compute the difference between two L'a'b' colors according to the CIEDE2000
@@ -66,7 +72,8 @@ pub fn delta_E_1976(c1: Lab, c2: Lab) -> f32 {
 /// by Sharma et al.
 /// http://www2.ece.rochester.edu/~gsharma/ciede2000/ciede2000noteCRNA.pdf
 #[allow(non_snake_case)]
-pub fn delta_E_2000(c1: Lab, c2: Lab) -> f32 {
+#[replace_float_literals(T::from(literal).unwrap())]
+pub fn delta_E_2000<T>(c1: Lab<T>, c2: Lab<T>) -> T where T: Real {
     let L_1 = c1.L;
     let a_1 = c1.a;
     let b_1 = c1.b;
@@ -79,7 +86,7 @@ pub fn delta_E_2000(c1: Lab, c2: Lab) -> f32 {
     let C_2_ab = hypot(a_2, b_2);
     let C_bar_ab = (C_1_ab + C_2_ab) / 2.0;
     let G = 0.5
-        * (1.0 - sqrt(C_bar_ab.powi(7) / (C_bar_ab.powi(7) + 25.0f32.powi(7))));
+        * (1.0 - (C_bar_ab.powi(7) / (C_bar_ab.powi(7) + 25.0.powi(7))).sqrt());
     let a_p_1 = (1.0 + G) * a_1;
     let a_p_2 = (1.0 + G) * a_2;
     let C_p_1 = hypot(a_p_1, b_1);
@@ -127,24 +134,24 @@ pub fn delta_E_2000(c1: Lab, c2: Lab) -> f32 {
 
     let delta_theta = 30.0 * exp(-sqr((h_bar_p - 275.0) / 25.0));
 
-    let R_C = 2.0 * sqrt(C_bar_p.powi(7) / (C_bar_p.powi(7) + 25.0f32.powi(7)));
+    let R_C = 2.0 * sqrt(C_bar_p.powi(7) / (C_bar_p.powi(7) + 25.0.powi(7)));
 
     let S_L =
-        1.0 + (0.015 * sqr(L_bar_p - 50.0)) / sqrt(20.0 + sqr(L_bar_p - 50.0));
+        1.0 + (0.015 * (L_bar_p - 50.0).powi(2)) / (20.0 + (L_bar_p - 50.0).powi(2)).sqrt();
     let S_C = 1.0 + 0.045 * C_bar_p;
     let S_H = 1.0 + 0.015 * C_bar_p * T;
     let R_T = -sin((2.0 * delta_theta).to_radians()) * R_C;
 
-    const K_L: f32 = 1.0;
-    const K_C: f32 = 1.0;
-    const K_H: f32 = 1.0;
+    let K_L = 1.0;
+    let K_C = 1.0;
+    let K_H = 1.0;
 
-    sqrt(
+    (
         sqr(delta_L_p / (K_L * S_L))
             + sqr(delta_C_p / (K_C * S_C))
             + sqr(delta_H_p / (K_H * S_H))
-            + R_T * ((delta_C_p / (K_C * S_C)) * (delta_H_p / (K_H * S_H))),
-    )
+            + R_T * ((delta_C_p / (K_C * S_C)) * (delta_H_p / (K_H * S_H)))
+    ).sqrt()
 }
 
 #[cfg(test)]
