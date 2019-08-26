@@ -983,9 +983,9 @@ mod test {
         println!("aces xyz_to_rgb mtx {:?}", model_f64::ACES.xf_xyz_to_rgb);
         println!("srgb wp: {:?} {:?}", model_f64::SRGB.white, crate::xyz::XYZf64::from(model_f64::SRGB.white));
         println!("aces wp: {:?} {:?}", model_f64::ACES.white, crate::xyz::XYZf64::from(model_f64::ACES.white));
-        let cat = crate::chromatic_adaptation::cat02(model_f64::SRGB.white.into(), model_f64::ACES.white.into());
+        let cat: M3f64 = crate::chromatic_adaptation::cat02(model_f64::SRGB.white, model_f64::ACES.white);
         println!("cat02: {:?}", cat);
-        let brad = crate::chromatic_adaptation::bradford(model_f64::SRGB.white.into(), model_f64::ACES.white.into());
+        let brad: M3f64 = crate::chromatic_adaptation::bradford(model_f64::SRGB.white, model_f64::ACES.white);
         println!("bradford: {:?}", brad);
         rgb_workout(
             &model_f64::ACES,

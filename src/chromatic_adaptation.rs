@@ -11,7 +11,15 @@ use numeric_literals::replace_float_literals;
 /// to another.
 /// See http://www.brucelindbloom.com for more information.
 #[replace_float_literals(T::from(literal).unwrap())]
-pub fn bradford<T>(wp_src: XYZ<T>, wp_dst: XYZ<T>) -> Matrix33<T> where T: Real {
+pub fn bradford<T, X1: Into<XYZ<T>>, X2: Into<XYZ<T>>>(
+    wp_src: X1,
+    wp_dst: X2,
+) -> Matrix33<T>
+where
+    T: Real,
+{
+    let wp_src: XYZ<T> = wp_src.into();
+    let wp_dst: XYZ<T> = wp_dst.into();
     if wp_src == wp_dst {
         return Matrix33::<T>::make_identity();
     }
@@ -48,11 +56,19 @@ pub fn bradford<T>(wp_src: XYZ<T>, wp_dst: XYZ<T>) -> Matrix33<T> where T: Real 
 /// to another.
 /// See http://www.brucelindbloom.com for more information.
 #[replace_float_literals(T::from(literal).unwrap())]
-pub fn von_kries<T>(wp_src: XYZ<T>, wp_dst: XYZ<T>) -> Matrix33<T> where T: Real {
+pub fn von_kries<T, X1: Into<XYZ<T>>, X2: Into<XYZ<T>>>(
+    wp_src: X1,
+    wp_dst: X2,
+) -> Matrix33<T>
+where
+    T: Real,
+{
+    let wp_src: XYZ<T> = wp_src.into();
+    let wp_dst: XYZ<T> = wp_dst.into();
     if wp_src == wp_dst {
         return Matrix33::<T>::make_identity();
     }
-    
+
     #[rustfmt::skip]
     let M_A = Matrix33::<T>::new([
         0.4002400,  0.7076000, -0.0808100,
@@ -90,7 +106,13 @@ pub fn von_kries<T>(wp_src: XYZ<T>, wp_dst: XYZ<T>) -> Matrix33<T> where T: Real
 /// to another.
 /// See https://en.wikipedia.org/wiki/CIECAM02#CAT02 for more information.
 #[replace_float_literals(T::from(literal).unwrap())]
-pub fn cat02<T, X1: Into<XYZ<T>>, X2: Into<XYZ<T>>>(wp_src: X1, wp_dst: X2) -> Matrix33<T> where T: Real + std::fmt::Display + std::fmt::Debug {
+pub fn cat02<T, X1: Into<XYZ<T>>, X2: Into<XYZ<T>>>(
+    wp_src: X1,
+    wp_dst: X2,
+) -> Matrix33<T>
+where
+    T: Real,
+{
     let wp_src: XYZ<T> = wp_src.into();
     let wp_dst: XYZ<T> = wp_dst.into();
     if wp_src == wp_dst {

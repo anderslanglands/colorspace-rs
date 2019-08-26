@@ -973,7 +973,7 @@ mod tests {
         // check at 1nm
         let xyz = spd_to_xyz_integration(
             &colorchecker::DARK_SKIN,
-            &illuminant::D65.spd,
+            &illuminant::spd::D65,
             &cmf::CIE_1931_2_DEGREE,
             SpdShape::astm_e308(),
         );
@@ -988,7 +988,7 @@ mod tests {
         // check at 5nm
         let spd = colorchecker::DARK_SKIN.clone();
         let spd = spd.interpolate(SpdShape::new(spd.start(), spd.end(), 5.0));
-        let xyz = spd.to_xyz(&illuminant::D65.spd, &cmf::CIE_1931_2_DEGREE);
+        let xyz = spd.to_xyz(&illuminant::spd::D65, &cmf::CIE_1931_2_DEGREE);
         assert!(
             XYZf64::new(
                 11.14726060385657824269856064347550, 10.07254417119669, 6.80486371314964,
@@ -1000,7 +1000,7 @@ mod tests {
         let spd = spd.align(SpdShape::new(380.0, 730.0, 10.0));
         let xyz = spd_to_xyz_tristimulus_weighting_factors_astme308(
             &spd,
-            &illuminant::D65.spd.align(SpdShape::new(360.0, 780.0, 1.0)),
+            &illuminant::spd::D65.align(SpdShape::new(360.0, 780.0, 1.0)),
             &cmf::CIE_1931_2_DEGREE.align(SpdShape::new(360.0, 780.0, 1.0)),
         );
         assert!(
@@ -1012,7 +1012,7 @@ mod tests {
         );
 
         let xyz = spd.to_xyz(
-            &illuminant::D65.spd.align(SpdShape::new(360.0, 780.0, 1.0)),
+            &illuminant::spd::D65.align(SpdShape::new(360.0, 780.0, 1.0)),
             &cmf::CIE_1931_2_DEGREE.align(SpdShape::new(360.0, 780.0, 1.0)),
         );
         assert!(
@@ -1046,7 +1046,7 @@ mod tests {
 
     #[test]
     fn weighting() {
-        let d65 = illuminant::D65.spd.align(SpdShape::astm_e308());
+        let d65 = illuminant::spd::D65.align(SpdShape::astm_e308());
         let cmf = cmf::CIE_1931_2_DEGREE.align(SpdShape::astm_e308());
         let w = tristimulus_weighting_factors_astme2022(&cmf, &d65, SpdShape::new(360.0, 780.0, 20.0));
         for (x, y, z) in izip!(w.0.iter(), w.1.iter(), w.2.iter()) {
@@ -1071,7 +1071,7 @@ mod tests {
         for (name, ref_xyz) in colorchecker::XYZ_D65.iter() {
             let spd = &colorchecker::SPECTRAL[name];
             let xyz = spd.to_xyz(
-                &illuminant::D65.spd,
+                &illuminant::spd::D65,
                 &cmf::CIE_1931_2_DEGREE,
             );
             assert!(

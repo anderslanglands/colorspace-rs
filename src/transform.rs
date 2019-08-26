@@ -152,6 +152,7 @@ fn test_checker_xyz_to_rgb_avx_planes() {
 
     let (rr, rg, rb) = xyz_slice_to_rgb_avx_planes::<Avx2>(&xyz_to_rgb_mtx, &xs, &ys, &zs);
 
+    use itertools::izip;
     for (r, g, b, name) in izip!(rr.into_iter(), rg.into_iter(), rb.into_iter(), colorchecker::NAMES.iter()) {
         let rgb = rgbf32(r, g, b);
         let rgb_ref = RGBf32::from(colorchecker::SRGB_LINEAR[*name]);
