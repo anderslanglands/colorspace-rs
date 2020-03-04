@@ -5,11 +5,13 @@ use std::iter::FromIterator;
 
 use float_cmp::{ApproxEq, F64Margin};
 
-use itertools::{izip};
+use itertools::izip;
 
-use crate::xyz::{xyz, XYZf64};
-use crate::interpolation::{ExtrapolatorConstant, InterpolatorSprague, SpragueCoefficients};
 use crate::cmf::CMF;
+use crate::interpolation::{
+    ExtrapolatorConstant, InterpolatorSprague, SpragueCoefficients,
+};
+use crate::xyz::{xyz, XYZf64};
 
 #[derive(Display, PartialEq, PartialOrd, Copy, Clone)]
 #[display(fmt = "({}, {}, {})", start, end, interval)]
@@ -19,7 +21,7 @@ where
 {
     /// Start of the wavelength range, in nm
     pub start: T,
-    /// Start of the wavelength range, in nm
+    /// End of the wavelength range, in nm
     pub end: T,
     /// Interval between two sample values, in nm
     pub interval: Interval<T>,
@@ -45,7 +47,6 @@ where
         }
     }
 }
-
 
 impl<T> SpdShape<T>
 where
@@ -100,7 +101,9 @@ where
     fn next(&mut self) -> Option<T> {
         self.current = self.current + 1;
         if self.current <= self.end {
-            Some(self.start + T::from(self.current - 1).unwrap() * self.interval)
+            Some(
+                self.start + T::from(self.current - 1).unwrap() * self.interval,
+            )
         } else {
             None
         }
@@ -153,12 +156,12 @@ impl ApproxEq for Sample {
 /// i.e. paired wavelength and power values. Wavelengths are assumed to be in
 /// nanometres.
 /// The `samples` may have uniform or varying spacing, although most functions
-/// that operate on [VSPD] require uniform samples and will either error or 
+/// that operate on [VSPD] require uniform samples and will either error or
 /// pre-interpolate when given a varying [VSPD].
 /// [VSPD] is designed for flexbility and accuracy, to be used for generating
 /// reference solutions. As such, it uses `f64` as an underlying storage type
 /// and its methods generally do a lot of copying of the whole sample vector.
-/// If you want a type that is optimized for performance at the expense of 
+/// If you want a type that is optimized for performance at the expense of
 /// accuracy, you should look at [SPD] instead.
 #[derive(Clone)]
 pub struct VSPD {
@@ -225,7 +228,8 @@ impl VSPD {
     /// # Panics
     /// If the `samples` vector has less than 2 samples.
     pub fn constant(shape: SpdShape<f64>, value: f64) -> VSPD {
-        let samples: Vec<Sample> = shape.iter().map(|nm| Sample { nm: nm, v: value }).collect();
+        let samples: Vec<Sample> =
+            shape.iter().map(|nm| Sample { nm: nm, v: value }).collect();
         if samples.len() < 2 {
             panic!(
                 "VSPD must have at least 2 samples. SpdShape given was: {}",
@@ -253,12 +257,16 @@ impl VSPD {
                 panic!("Cannot create a VSPD with varying interval");
             }
         };
-        let num_samples_from_shape = ((shape.end - shape.start) / interval) as usize + 1;
+        let num_samples_from_shape =
+            ((shape.end - shape.start) / interval) as usize + 1;
         if num_samples_from_shape != values.len() {
             panic!("Length of values slice did not match requested shape. SpdShape has {} samples, but values slice had {} values.", num_samples_from_shape, values.len());
         }
-        let samples: Vec<Sample> = shape.iter().zip(values.iter()).map(|(nm, v)| Sample { nm, v: *v }).collect();
-
+        let samples: Vec<Sample> = shape
+            .iter()
+            .zip(values.iter())
+            .map(|(nm, v)| Sample { nm, v: *v })
+            .collect();
 
         VSPD { samples, shape }
     }
@@ -385,8 +393,8 @@ impl VSPD {
     }
 
     /// Trim this [VSPD] to lie inside the given [SpdShape].
-    /// Note that this does not modify the spacing of samples in the SPD. 
-    /// If you want the boundaries of the new [SpdShape](struct.SpdShape.html) to be 
+    /// Note that this does not modify the spacing of samples in the SPD.
+    /// If you want the boundaries of the new [SpdShape](struct.SpdShape.html) to be
     /// exactly those specified in `shape` you should use [interpolate](VSPD::interpolate) instead.
     pub fn trim(&self, shape: SpdShape<f64>) -> VSPD {
         let samples: Vec<Sample> = self
@@ -417,7 +425,7 @@ impl VSPD {
     /// # Arguments
     /// * `illuminant` - The reference illuminant to use, e.g. [D65](struct@illuminant::D65)
     /// * `cmf` - The set of color-matching functions to use, e.g. [CIE 1931 2-degree standard observer](struct@cmf::CIE_1931_2_DEGREE)
-    /// # Returns 
+    /// # Returns
     /// An XYZf64 normalized to 100.0 as the perfect diffuser.
     pub fn to_xyz(&self, illuminant: &VSPD, cmf: &CMF) -> XYZf64 {
         // align the cmf and illum
@@ -427,14 +435,28 @@ impl VSPD {
         // interpolate to make it uniform
         match self.interval() {
             Interval::Varying => {
-                let spd = self.align(SpdShape::new(self.shape.start, self.shape.end, 1.0));
-                return spd_to_xyz_integration(&spd, &illuminant, &cmf, spd.shape);
+                let spd = self.align(SpdShape::new(
+                    self.shape.start,
+                    self.shape.end,
+                    1.0,
+                ));
+                return spd_to_xyz_integration(
+                    &spd,
+                    &illuminant,
+                    &cmf,
+                    spd.shape,
+                );
             }
             Interval::Uniform(interval) => {
                 match interval.to_usize().unwrap() {
                     1 => {
                         // just integrate
-                        spd_to_xyz_integration(self, &illuminant, &cmf, SpdShape::astm_e308())
+                        spd_to_xyz_integration(
+                            self,
+                            &illuminant,
+                            &cmf,
+                            SpdShape::astm_e308(),
+                        )
                     }
                     5 => {
                         // Integrate at 5nm
@@ -444,7 +466,11 @@ impl VSPD {
                     }
                     10 => {
                         // use ASTME308 weighting factors
-                        spd_to_xyz_tristimulus_weighting_factors_astme308(&self, &illuminant, &cmf)
+                        spd_to_xyz_tristimulus_weighting_factors_astme308(
+                            &self,
+                            &illuminant,
+                            &cmf,
+                        )
                     }
                     // 20.0 => {
                     //     // do special thing we haven't implemented yet
@@ -454,9 +480,13 @@ impl VSPD {
                             "Interval must be 1, 5, 10 or 20nm, got: {}. Interpolating",
                             self.interval()
                         );
-                        spd_to_xyz_integration(self, &illuminant, &cmf, SpdShape::astm_e308())
+                        spd_to_xyz_integration(
+                            self,
+                            &illuminant,
+                            &cmf,
+                            SpdShape::astm_e308(),
+                        )
                     }
-
                 }
             }
         }
@@ -470,7 +500,9 @@ fn calculate_interval(samples: &[Sample]) -> Interval<f64> {
     let assumed_interval = samples[1].nm - samples[0].nm;
     for i in 1..samples.len() - 1 {
         // This is safe because we guarantee we're in bounds in the for loop
-        let interval = unsafe { samples.get_unchecked(i).nm - samples.get_unchecked(i - 1).nm };
+        let interval = unsafe {
+            samples.get_unchecked(i).nm - samples.get_unchecked(i - 1).nm
+        };
         if !interval.approx_eq(
             assumed_interval,
             F64Margin {
@@ -499,7 +531,6 @@ fn calculate_shape(samples: &[Sample]) -> SpdShape<f64> {
         end,
         interval,
     }
-
 }
 
 fn spd_to_xyz_integration(
@@ -582,9 +613,21 @@ fn spd_to_xyz_tristimulus_weighting_factors_astme308(
         spd.shape,
     );
 
-    let x = w.0.iter().zip(spd.values()).map(|(w, r)| w * r).sum::<f64>();
-    let y = w.1.iter().zip(spd.values()).map(|(w, r)| w * r).sum::<f64>();
-    let z = w.2.iter().zip(spd.values()).map(|(w, r)| w * r).sum::<f64>();
+    let x =
+        w.0.iter()
+            .zip(spd.values())
+            .map(|(w, r)| w * r)
+            .sum::<f64>();
+    let y =
+        w.1.iter()
+            .zip(spd.values())
+            .map(|(w, r)| w * r)
+            .sum::<f64>();
+    let z =
+        w.2.iter()
+            .zip(spd.values())
+            .map(|(w, r)| w * r)
+            .sum::<f64>();
 
     xyz(x, y, z)
 }
@@ -597,9 +640,9 @@ fn tristimulus_weighting_factors_astme2022(
     // FIXME: should probably just interpolate to 1nm here
     let interval = match cmf.shape().interval {
         Interval::Uniform(i) => i,
-        Interval::Varying => {
-            panic!("tristimulus_weighting_factors_astme2022 requires uniform SPDs")
-        }
+        Interval::Varying => panic!(
+            "tristimulus_weighting_factors_astme2022 requires uniform SPDs"
+        ),
     };
     if interval != 1.0 {
         panic!("Interval must be 1");
@@ -615,9 +658,9 @@ fn tristimulus_weighting_factors_astme2022(
 
     let interval = match shape.interval {
         Interval::Uniform(i) => i,
-        Interval::Varying => {
-            panic!("tristimulus_weighting_factors_astme2022 requires uniform SPDs")
-        }
+        Interval::Varying => panic!(
+            "tristimulus_weighting_factors_astme2022 requires uniform SPDs"
+        ),
     };
 
     // first and last measurement intervals lagrange coefficients
@@ -673,9 +716,12 @@ fn tristimulus_weighting_factors_astme2022(
     // Last interval
     for j in 0..r_c {
         for k in (i_cm - 2..i_cm + 1).rev() {
-            w_x[k] = w_x[k] + c_c[r_c - j - 1][i_cm - k] * s[j + w_lif] * y_x[j + w_lif];
-            w_y[k] = w_y[k] + c_c[r_c - j - 1][i_cm - k] * s[j + w_lif] * y_y[j + w_lif];
-            w_z[k] = w_z[k] + c_c[r_c - j - 1][i_cm - k] * s[j + w_lif] * y_z[j + w_lif];
+            w_x[k] = w_x[k]
+                + c_c[r_c - j - 1][i_cm - k] * s[j + w_lif] * y_x[j + w_lif];
+            w_y[k] = w_y[k]
+                + c_c[r_c - j - 1][i_cm - k] * s[j + w_lif] * y_y[j + w_lif];
+            w_z[k] = w_z[k]
+                + c_c[r_c - j - 1][i_cm - k] * s[j + w_lif] * y_z[j + w_lif];
         }
     }
 
@@ -801,7 +847,10 @@ pub fn linspace(start: f64, end: f64, steps: usize) -> FloatRange {
 
 /// Compute the Lagrange coefficients for given interval size using
 /// ASTM E2022-11 method
-pub fn lagrange_coefficients_astm_e2022(interval: f64, degree: usize) -> Vec<Vec<f64>> {
+pub fn lagrange_coefficients_astm_e2022(
+    interval: f64,
+    degree: usize,
+) -> Vec<Vec<f64>> {
     let num = interval as usize - 1;
     let d = if degree == 4 { 1.0 } else { 0.0 };
 
@@ -846,7 +895,7 @@ impl<'a> ApproxEq for &'a VSPD {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{colorchecker, cmf, illuminant};
+    use crate::{cmf, colorchecker, illuminant};
     #[test]
     fn macro_initialization() {
         let spd = VSPD::new(vec![
@@ -989,11 +1038,18 @@ mod tests {
         let spd = colorchecker::DARK_SKIN.clone();
         let spd = spd.interpolate(SpdShape::new(spd.start(), spd.end(), 5.0));
         let xyz = spd.to_xyz(&illuminant::spd::D65, &cmf::CIE_1931_2_DEGREE);
-        assert!(
-            XYZf64::new(
-                11.14726060385657824269856064347550, 10.07254417119669, 6.80486371314964,
-            ).approx_eq(xyz, F64Margin{ulps: 2, epsilon: 1.0e-13})
-        );
+        assert!(XYZf64::new(
+            11.14726060385657824269856064347550,
+            10.07254417119669,
+            6.80486371314964,
+        )
+        .approx_eq(
+            xyz,
+            F64Margin {
+                ulps: 2,
+                epsilon: 1.0e-13
+            }
+        ));
 
         // check at 10nm
         let spd = colorchecker::DARK_SKIN.clone();
@@ -1003,31 +1059,41 @@ mod tests {
             &illuminant::spd::D65.align(SpdShape::new(360.0, 780.0, 1.0)),
             &cmf::CIE_1931_2_DEGREE.align(SpdShape::new(360.0, 780.0, 1.0)),
         );
-        assert!(
-            XYZf64::new(
-                11.14724658576002802590210194466636,
-                10.07258885098873690822074422612786,
-                6.80485137438652287755758152343333,
-            ).approx_eq(xyz, F64Margin{epsilon: 1.0e-14, ulps: 1})
-        );
+        assert!(XYZf64::new(
+            11.14724658576002802590210194466636,
+            10.07258885098873690822074422612786,
+            6.80485137438652287755758152343333,
+        )
+        .approx_eq(
+            xyz,
+            F64Margin {
+                epsilon: 1.0e-14,
+                ulps: 1
+            }
+        ));
 
         let xyz = spd.to_xyz(
             &illuminant::spd::D65.align(SpdShape::new(360.0, 780.0, 1.0)),
             &cmf::CIE_1931_2_DEGREE.align(SpdShape::new(360.0, 780.0, 1.0)),
         );
-        assert!(
-            XYZf64::new(
-                11.14724658576002802590210194466636,
-                10.07258885098873690822074422612786,
-                6.80485137438652287755758152343333,
-            ).approx_eq(xyz, F64Margin{epsilon: 1.0e-14, ulps: 1})
-        );
+        assert!(XYZf64::new(
+            11.14724658576002802590210194466636,
+            10.07258885098873690822074422612786,
+            6.80485137438652287755758152343333,
+        )
+        .approx_eq(
+            xyz,
+            F64Margin {
+                epsilon: 1.0e-14,
+                ulps: 1
+            }
+        ));
     }
 
     #[test]
     fn lagrange_coeff() {
-
-        let ln = linspace(1.0 / 10.0, 1.0 - (1.0 / 10.0), 9).collect::<Vec<_>>();
+        let ln =
+            linspace(1.0 / 10.0, 1.0 - (1.0 / 10.0), 9).collect::<Vec<_>>();
         println!("{:?}", ln);
 
         let c = lagrange_coefficients(0.1, 4);
@@ -1048,7 +1114,11 @@ mod tests {
     fn weighting() {
         let d65 = illuminant::spd::D65.align(SpdShape::astm_e308());
         let cmf = cmf::CIE_1931_2_DEGREE.align(SpdShape::astm_e308());
-        let w = tristimulus_weighting_factors_astme2022(&cmf, &d65, SpdShape::new(360.0, 780.0, 20.0));
+        let w = tristimulus_weighting_factors_astme2022(
+            &cmf,
+            &d65,
+            SpdShape::new(360.0, 780.0, 20.0),
+        );
         for (x, y, z) in izip!(w.0.iter(), w.1.iter(), w.2.iter()) {
             println!("{}, {}, {}", x, y, z);
         }
@@ -1063,20 +1133,21 @@ mod tests {
         for (x, y, z) in izip!(w.0.iter(), w.1.iter(), w.2.iter()) {
             println!("{}, {}, {}", x, y, z);
         }
-
     }
 
     #[test]
     fn checker_xyz() {
         for (name, ref_xyz) in colorchecker::XYZ_D65.iter() {
             let spd = &colorchecker::SPECTRAL[name];
-            let xyz = spd.to_xyz(
-                &illuminant::spd::D65,
-                &cmf::CIE_1931_2_DEGREE,
-            );
-            assert!(
-                ref_xyz.approx_eq(xyz, F64Margin{epsilon: 1.0e-14, ulps: 2})
-            );
+            let xyz =
+                spd.to_xyz(&illuminant::spd::D65, &cmf::CIE_1931_2_DEGREE);
+            assert!(ref_xyz.approx_eq(
+                xyz,
+                F64Margin {
+                    epsilon: 1.0e-14,
+                    ulps: 2
+                }
+            ));
         }
     }
 }

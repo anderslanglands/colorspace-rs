@@ -10,8 +10,8 @@ use crate::xyz::XYZf32;
 
 #[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
 use std::arch::x86_64::{
-    __m256, _mm256_add_ps, _mm256_cvtss_f32, _mm256_hadd_ps, _mm256_loadu_ps, _mm256_mul_ps,
-    _mm256_permute2f128_ps, 
+    __m256, _mm256_add_ps, _mm256_cvtss_f32, _mm256_hadd_ps, _mm256_loadu_ps,
+    _mm256_mul_ps, _mm256_permute2f128_ps,
 };
 
 pub const SPD_SAMPLES: usize = 40;
@@ -55,6 +55,17 @@ impl SPD {
 
     pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut f32> {
         self.values.iter_mut()
+    }
+}
+
+impl PartialEq for SPD {
+    fn eq(&self, other: &SPD) -> bool {
+        for (l, r) in self.iter().zip(other.iter()) {
+            if l != r {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -230,7 +241,7 @@ mod test {
         }
     }
 
-    #[cfg(target_feature="avx")]
+    #[cfg(target_feature = "avx")]
     #[test]
     fn test_spd_to_xyz_avx() {
         for (name, spd) in BABELCOLOR.iter() {

@@ -6,7 +6,6 @@ use std::ops::{Index, IndexMut};
 
 use float_cmp::{ApproxEq, F32Margin, F64Margin};
 
-
 #[cfg(feature = "f16")]
 use half::f16;
 
@@ -44,6 +43,19 @@ where
             r: self.r.abs(),
             g: self.g.abs(),
             b: self.b.abs(),
+        }
+    }
+
+    pub fn cast_slice(slice: &[T]) -> &[RGBf<T>] {
+        if slice.len() % 3 != 0 {
+            panic!("invalid slice cast");
+        }
+
+        unsafe {
+            std::slice::from_raw_parts(
+                slice.as_ptr() as *const RGBf<T>,
+                slice.len() / 3,
+            )
         }
     }
 }
@@ -153,9 +165,9 @@ impl ApproxEq for RGBf32 {
     type Margin = F32Margin;
     fn approx_eq<T: Into<Self::Margin>>(self, other: Self, margin: T) -> bool {
         let margin = margin.into();
-        self.r.approx_eq(other.r, margin) 
-        && self.g.approx_eq(other.g, margin)
-        && self.b.approx_eq(other.b, margin)
+        self.r.approx_eq(other.r, margin)
+            && self.g.approx_eq(other.g, margin)
+            && self.b.approx_eq(other.b, margin)
     }
 }
 
@@ -163,14 +175,17 @@ impl ApproxEq for RGBf64 {
     type Margin = F64Margin;
     fn approx_eq<T: Into<Self::Margin>>(self, other: Self, margin: T) -> bool {
         let margin = margin.into();
-        self.r.approx_eq(other.r, margin) 
-        && self.g.approx_eq(other.g, margin)
-        && self.b.approx_eq(other.b, margin)
+        self.r.approx_eq(other.r, margin)
+            && self.g.approx_eq(other.g, margin)
+            && self.b.approx_eq(other.b, margin)
     }
 }
 
 impl std::iter::Sum for RGBf32 {
-    fn sum<I>(iter: I) -> RGBf32 where I: Iterator<Item=RGBf32> {
+    fn sum<I>(iter: I) -> RGBf32
+    where
+        I: Iterator<Item = RGBf32>,
+    {
         let mut xyz = RGBf32::from_scalar(0.0);
         for i in iter {
             xyz += i;
@@ -181,7 +196,10 @@ impl std::iter::Sum for RGBf32 {
 }
 
 impl std::iter::Sum for RGBf64 {
-    fn sum<I>(iter: I) -> RGBf64 where I: Iterator<Item=RGBf64> {
+    fn sum<I>(iter: I) -> RGBf64
+    where
+        I: Iterator<Item = RGBf64>,
+    {
         let mut xyz = RGBf64::from_scalar(0.0);
         for i in iter {
             xyz += i;
