@@ -21,18 +21,20 @@ pub const SPD_INTERVAL: f32 = 10.0;
 
 #[repr(align(16))]
 #[derive(Clone)]
-/// A lightweight SPD using a fixed shape of 380-770nm wit a 10nm interval.
-/// All tristinulus calculations are performed with a D65 whitepoint and
+/// A lightweight SPD using a fixed shape of 380-770nm with a 10nm interval.
+/// All tristimulus calculations are performed with a D65 whitepoint and
 /// CIE 1931 2-degree standard observer CMFs.
 pub struct SPD {
     pub values: [f32; SPD_SAMPLES],
 }
 
 impl SPD {
+    /// Create a new SPD with the given values
     pub fn new(values: [f32; 40]) -> SPD {
         SPD { values }
     }
 
+    /// Create a new SPD where all samples have the same value
     pub fn constant(v: f32) -> SPD {
         let mut values = [0.0f32; SPD_SAMPLES];
         unsafe {
@@ -44,6 +46,10 @@ impl SPD {
         SPD { values }
     }
 
+    /// Convert this SPD to an [XYZf32] assuming a D65 illuminant and CIE 1931
+    /// 2-degree CMFs
+    ///
+    /// This will use AVX if enabled
     #[inline(always)]
     pub fn to_xyz(&self) -> XYZf32 {
         spd_to_xyz(self)
@@ -83,6 +89,8 @@ cfg_if::cfg_if! {
     }
 }
 
+/// Convert `spd` to an [XYZf32] assuming a D65 illuminant and CIE 1931
+/// 2-degree CMFs and the scalar code path.
 pub fn spd_to_xyz_scalar(spd: &SPD) -> XYZf32 {
     let mut xyz = XYZf32::from_scalar(0.0);
     let mut c = XYZf32::from_scalar(0.0);
@@ -104,6 +112,8 @@ pub fn spd_to_xyz_scalar(spd: &SPD) -> XYZf32 {
     xyz
 }
 
+/// Convert `spd` to an [XYZf32] assuming a D65 illuminant and CIE 1931
+/// 2-degree CMFs and the AVX code path.
 #[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
 pub fn spd_to_xyz_avx(spd: &SPD) -> XYZf32 {
     unsafe {

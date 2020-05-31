@@ -2,7 +2,10 @@
 
 use super::math::*;
 use std::fmt;
-use std::ops::{Index, IndexMut};
+use std::{
+    convert::TryInto,
+    ops::{Index, IndexMut},
+};
 
 use float_cmp::{ApproxEq, F32Margin, F64Margin};
 
@@ -485,6 +488,23 @@ pub struct RGBu8 {
     pub r: u8,
     pub g: u8,
     pub b: u8,
+}
+
+impl RGBu8 {
+    pub fn cast_slice(slice: &[u8]) -> &[RGBu8] {
+        if slice.len() % 3 != 0 {
+            panic!("invalid slice cast");
+        }
+
+        // This is safe as long as the length of `slice` is a multiple of 3,
+        // which we guarantee with the panic!, above
+        unsafe {
+            std::slice::from_raw_parts(
+                slice.as_ptr() as *const RGBu8,
+                slice.len() / 3,
+            )
+        }
+    }
 }
 
 #[repr(C)]

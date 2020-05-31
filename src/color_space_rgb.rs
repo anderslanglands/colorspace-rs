@@ -1,4 +1,7 @@
 //! Defining RGB color spaces from primaries, whitepoint and OETF
+//!
+//! The RGB models are defined in 32- and 64-bit variants in the [model_f32]
+//! and [model_f64] submodules.
 #![allow(clippy::excessive_precision, clippy::unreadable_literal)]
 use super::chromaticity::*;
 use super::math::{M3f32, M3f64, Matrix33, Real};
@@ -328,7 +331,8 @@ where
         oetf: TransferFunction<T>,
         eotf: TransferFunction<T>,
     ) -> ColorSpaceRGB<T> {
-        let xf_xyz_to_rgb = build_xyz_to_rgb_matrix(&red, &green, &blue, &white);
+        let xf_xyz_to_rgb =
+            build_xyz_to_rgb_matrix(&red, &green, &blue, &white);
         let xf_rgb_to_xyz = xf_xyz_to_rgb.inverse().unwrap();
 
         ColorSpaceRGB {
@@ -473,218 +477,218 @@ pub mod model_f64 {
 
     lazy_static! {
 
-            /// sRGB
-            /// Data taken https://en.wikipedia.org/wiki/SRGB
-            pub static ref SRGB: ColorSpaceRGB<f64> = {
-                ColorSpaceRGB::new_with_specified_matrices(
-                    XYYf64 { x: 0.64, y: 0.33, Y: 1.0 },
-                    XYYf64 { x: 0.30, y: 0.60, Y: 1.0 },
-                    XYYf64 { x: 0.15, y: 0.06, Y: 1.0 },
-                    XYYf64 {
-                        x: 0.3127,
-                        y: 0.3290,
-                        Y: 1.0,
-                    },
-                    M3f64::new([
-                        3.2406, -1.5372, -0.4986,
-                        -0.9689, 1.8758, 0.0415,
-                        0.0557, -0.2040, 1.0570
-                        ]),
-                    M3f64::new([
-                        0.4124, 0.3576, 0.1805,
-                        0.2126, 0.7152, 0.0722,
-                        0.0193, 0.1192, 0.9505
-                        ]),
-                    Box::new(encode::srgb),
-                    Box::new(decode::srgb),
-                )
-            };
-
-            /// sRGB - derived matrices
-            /// Data taken https://en.wikipedia.org/wiki/SRGB
-            pub static ref SRGB_DRV: ColorSpaceRGB<f64> = {
-                ColorSpaceRGB::new(
-                    XYYf64 { x: 0.64, y: 0.33, Y: 1.0 },
-                    XYYf64 { x: 0.30, y: 0.60, Y: 1.0 },
-                    XYYf64 { x: 0.15, y: 0.06, Y: 1.0 },
-                    XYYf64 {
-                        x: 0.3127,
-                        y: 0.3290,
-                        Y: 1.0,
-                    },
-                    Box::new(encode::srgb),
-                    Box::new(decode::srgb),
-                )
-            };
-
-            /// ITU-R Rec. BT.709
-            /// Data taken from https://en.wikipedia.org/wiki/Rec._709
-            pub static ref ITUR_BT709: ColorSpaceRGB<f64> = {
-                ColorSpaceRGB::new(
-                    XYYf64 { x: 0.64, y: 0.33, Y: 1.0 },
-                    XYYf64 { x: 0.30, y: 0.60, Y: 1.0 },
-                    XYYf64 { x: 0.15, y: 0.06, Y: 1.0 },
-                    XYYf64 {
-                        x: 0.3127,
-                        y: 0.3290,
-                        Y: 1.0,
-                    },
-                    Box::new(encode::bt709),
-                    Box::new(decode::bt709),
-                )
-            };
-
-            /// ITU-R Rec. BT.2020
-            /// Data taken from https://en.wikipedia.org/wiki/Rec._2020
-            /// See also https://www.itu.int/rec/R-REC-BT.1886-0-201103-I
-            pub static ref ITUR_BT2020: ColorSpaceRGB<f64> = {
-                ColorSpaceRGB::new(
-                    XYYf64 { x: 0.708, y: 0.292, Y: 1.0 },
-                    XYYf64 { x: 0.17, y: 0.797, Y: 1.0 },
-                    XYYf64 { x: 0.131, y: 0.046, Y: 1.0 },
-                    XYYf64 {
-                        x: 0.3127,
-                        y: 0.3290,
-                        Y: 1.0,
-                    },
-                    Box::new(encode::bt2020),
-                    Box::new(decode::bt2020),
-                )
-            };
-
-            /// DCI-P3
-            /// Data taken from https://en.wikipedia.org/wiki/DCI-P3
-            pub static ref DCI_P3: ColorSpaceRGB<f64> = {
-                ColorSpaceRGB::new(
-                    XYYf64 { x: 0.680, y: 0.320, Y: 1.0 },
-                    XYYf64 { x: 0.265, y: 0.690, Y: 1.0 },
-                    XYYf64 { x: 0.150, y: 0.060 , Y: 1.0},
-                    XYYf64 {
-                        x: 0.314,
-                        y: 0.351,
-                        Y: 1.0,
-                    },
-                    Box::new(|c: RGBf64| c.powf(1.0 / 2.6)),
-                    Box::new(|c: RGBf64| c.powf(2.6)),
-                )
-            };
-
-            /// P3 D65
-            /// Data taken from https://en.wikipedia.org/wiki/DCI-P3
-            pub static ref DCI_P3_D65: ColorSpaceRGB<f64> = {
-                ColorSpaceRGB::new(
-                    XYYf64 { x: 0.680, y: 0.320 , Y: 1.0},
-                    XYYf64 { x: 0.265, y: 0.690 , Y: 1.0},
-                    XYYf64 { x: 0.150, y: 0.060 , Y: 1.0},
-                    XYYf64 {
-                        x: 0.3127,
-                        y: 0.3290,
-                        Y: 1.0,
-                    },
-                    Box::new(|c: RGBf64| c.powf(1.0 / 2.6)),
-                    Box::new(|c: RGBf64| c.powf(2.6)),
-                )
-            };
-
-            /// ACES archival color space. AP0 primaries.
-            /// Data taken from https://en.wikipedia.org/wiki/Academy_Color_Encoding_System
-            pub static ref ACES: ColorSpaceRGB<f64> = {
-                ColorSpaceRGB::new_with_specified_matrices(
-                    XYYf64 { x: 0.7347, y: 0.2653, Y: 1.0},
-                    XYYf64 { x: 0.0000, y: 1.0000, Y: 1.0},
-                    XYYf64 { x: 0.0001, y: -0.077, Y: 1.0},
-                    XYYf64 {
-                        x: 0.32168,
-                        y: 0.33767,
-                        Y: 1.0,
-                    },
-                    M3f64::new([
-                        1.0498110175, 0.0000000000, -0.0000974845,
-                        -0.4959030231, 1.3733130458, 0.0982400361,
-                        0.0000000000, 0.0000000000, 0.9912520182,
+        /// sRGB
+        /// Data taken https://en.wikipedia.org/wiki/SRGB
+        pub static ref SRGB: ColorSpaceRGB<f64> = {
+            ColorSpaceRGB::new_with_specified_matrices(
+                XYYf64 { x: 0.64, y: 0.33, Y: 1.0 },
+                XYYf64 { x: 0.30, y: 0.60, Y: 1.0 },
+                XYYf64 { x: 0.15, y: 0.06, Y: 1.0 },
+                XYYf64 {
+                    x: 0.3127,
+                    y: 0.3290,
+                    Y: 1.0,
+                },
+                M3f64::new([
+                    3.2406, -1.5372, -0.4986,
+                    -0.9689, 1.8758, 0.0415,
+                    0.0557, -0.2040, 1.0570
                     ]),
-                    M3f64::new([
-                        0.9525523959, 0.0000000000, 0.0000936786,
-                        0.3439664498, 0.7281660966, -0.0721325464,
-                        0.0000000000, 0.0000000000, 1.0088251844,
+                M3f64::new([
+                    0.4124, 0.3576, 0.1805,
+                    0.2126, 0.7152, 0.0722,
+                    0.0193, 0.1192, 0.9505
                     ]),
-                    Box::new(encode::linear),
-                    Box::new(decode::linear),
-                )
-            };
+                Box::new(encode::srgb),
+                Box::new(decode::srgb),
+            )
+        };
 
-            /// ACEScg color space. AP1 primaries.
-            /// Data taken from https://en.wikipedia.org/wiki/Academy_Color_Encoding_System
-            pub static ref ACES_CG: ColorSpaceRGB<f64> = {
-                ColorSpaceRGB::new(
-                    XYYf64 { x: 0.713, y: 0.293, Y: 1.0},
-                    XYYf64 { x: 0.165, y: 0.830, Y: 1.0},
-                    XYYf64 { x: 0.128, y: 0.044, Y: 1.0},
-                    XYYf64 {
-                        x: 0.32168,
-                        y: 0.33767,
-                        Y: 1.0,
-                    },
-                    Box::new(encode::linear),
-                    Box::new(decode::linear),
-                )
-            };
+        /// sRGB - derived matrices
+        /// Data taken https://en.wikipedia.org/wiki/SRGB
+        pub static ref SRGB_DRV: ColorSpaceRGB<f64> = {
+            ColorSpaceRGB::new(
+                XYYf64 { x: 0.64, y: 0.33, Y: 1.0 },
+                XYYf64 { x: 0.30, y: 0.60, Y: 1.0 },
+                XYYf64 { x: 0.15, y: 0.06, Y: 1.0 },
+                XYYf64 {
+                    x: 0.3127,
+                    y: 0.3290,
+                    Y: 1.0,
+                },
+                Box::new(encode::srgb),
+                Box::new(decode::srgb),
+            )
+        };
 
-            /// Adobe RGB (1998)
-            /// Data taken from
-            /// https://www.adobe.com/digitalimag/pdfs/AdobeRGB1998.pdf
-            pub static ref ADOBE_RGB_1998: ColorSpaceRGB<f64> = {
-                ColorSpaceRGB::new_with_specified_matrices(
-                    XYYf64 { x: 0.6400, y: 0.3300, Y: 1.0},
-                    XYYf64 { x: 0.2100, y: 0.7100, Y: 1.0},
-                    XYYf64 { x: 0.1500, y: 0.0600, Y: 1.0},
-                    XYYf64 {
-                        x: 0.3127,
-                        y: 0.3290,
-                        Y: 1.0,
-                    },
-                    M3f64::new([
-                        2.04159, -0.56501, -0.34473,
-                        -0.96924, 1.87597, 0.04156,
-                        0.01344, -0.11836, 1.01517,
-                    ]),
-                    M3f64::new([
-                        0.57667, 0.18556, 0.18823,
-                        0.29734, 0.62736, 0.07529,
-                        0.02703, 0.07069, 0.99134,
-                    ]),
-                    Box::new(|c: RGBf64| c.powf(1.0 / 2.19921875)),
-                    Box::new(|c: RGBf64| c.powf(2.19921875)),
-                )
-            };
+        /// ITU-R Rec. BT.709
+        /// Data taken from https://en.wikipedia.org/wiki/Rec._709
+        pub static ref ITUR_BT709: ColorSpaceRGB<f64> = {
+            ColorSpaceRGB::new(
+                XYYf64 { x: 0.64, y: 0.33, Y: 1.0 },
+                XYYf64 { x: 0.30, y: 0.60, Y: 1.0 },
+                XYYf64 { x: 0.15, y: 0.06, Y: 1.0 },
+                XYYf64 {
+                    x: 0.3127,
+                    y: 0.3290,
+                    Y: 1.0,
+                },
+                Box::new(encode::bt709),
+                Box::new(decode::bt709),
+            )
+        };
 
-            /// ARRI Alexa Wide Gamut.
-            /// Data taken from "Alexa LogC Curve in VFX"
-            pub static ref ALEXA_WIDE_GAMUT: ColorSpaceRGB<f64> = {
-                ColorSpaceRGB::new_with_specified_matrices(
-                    XYYf64 { x: 0.6840, y: 0.3130, Y: 1.0},
-                    XYYf64 { x: 0.2210, y: 0.8480, Y: 1.0},
-                    XYYf64 { x: 0.0861, y: -0.102, Y: 1.0},
-                    XYYf64 {
-                        x: 0.3127,
-                        y: 0.3290,
-                        Y: 1.0,
-                    },
-                    M3f64::new([
-                        1.789066, -0.482534, -0.200076,
-                        -0.639849, 1.396400, 0.194432,
-                        -0.041532, 0.082335, 0.878868,
-                    ]),
-                    M3f64::new([
-                        0.638008, 0.214704, 0.097744,
-                        0.291954, 0.823841, -0.115795,
-                        0.002798, -0.067034, 1.153294,
-                    ]),
-                    Box::new(encode::alexa_logc_v3),
-                    Box::new(decode::alexa_logc_v3),
-                )
-            };
-        }
+        /// ITU-R Rec. BT.2020
+        /// Data taken from https://en.wikipedia.org/wiki/Rec._2020
+        /// See also https://www.itu.int/rec/R-REC-BT.1886-0-201103-I
+        pub static ref ITUR_BT2020: ColorSpaceRGB<f64> = {
+            ColorSpaceRGB::new(
+                XYYf64 { x: 0.708, y: 0.292, Y: 1.0 },
+                XYYf64 { x: 0.17, y: 0.797, Y: 1.0 },
+                XYYf64 { x: 0.131, y: 0.046, Y: 1.0 },
+                XYYf64 {
+                    x: 0.3127,
+                    y: 0.3290,
+                    Y: 1.0,
+                },
+                Box::new(encode::bt2020),
+                Box::new(decode::bt2020),
+            )
+        };
+
+        /// DCI-P3
+        /// Data taken from https://en.wikipedia.org/wiki/DCI-P3
+        pub static ref DCI_P3: ColorSpaceRGB<f64> = {
+            ColorSpaceRGB::new(
+                XYYf64 { x: 0.680, y: 0.320, Y: 1.0 },
+                XYYf64 { x: 0.265, y: 0.690, Y: 1.0 },
+                XYYf64 { x: 0.150, y: 0.060 , Y: 1.0},
+                XYYf64 {
+                    x: 0.314,
+                    y: 0.351,
+                    Y: 1.0,
+                },
+                Box::new(|c: RGBf64| c.powf(1.0 / 2.6)),
+                Box::new(|c: RGBf64| c.powf(2.6)),
+            )
+        };
+
+        /// P3 D65
+        /// Data taken from https://en.wikipedia.org/wiki/DCI-P3
+        pub static ref DCI_P3_D65: ColorSpaceRGB<f64> = {
+            ColorSpaceRGB::new(
+                XYYf64 { x: 0.680, y: 0.320 , Y: 1.0},
+                XYYf64 { x: 0.265, y: 0.690 , Y: 1.0},
+                XYYf64 { x: 0.150, y: 0.060 , Y: 1.0},
+                XYYf64 {
+                    x: 0.3127,
+                    y: 0.3290,
+                    Y: 1.0,
+                },
+                Box::new(|c: RGBf64| c.powf(1.0 / 2.6)),
+                Box::new(|c: RGBf64| c.powf(2.6)),
+            )
+        };
+
+        /// ACES archival color space. AP0 primaries.
+        /// Data taken from https://en.wikipedia.org/wiki/Academy_Color_Encoding_System
+        pub static ref ACES: ColorSpaceRGB<f64> = {
+            ColorSpaceRGB::new_with_specified_matrices(
+                XYYf64 { x: 0.7347, y: 0.2653, Y: 1.0},
+                XYYf64 { x: 0.0000, y: 1.0000, Y: 1.0},
+                XYYf64 { x: 0.0001, y: -0.077, Y: 1.0},
+                XYYf64 {
+                    x: 0.32168,
+                    y: 0.33767,
+                    Y: 1.0,
+                },
+                M3f64::new([
+                    1.0498110175, 0.0000000000, -0.0000974845,
+                    -0.4959030231, 1.3733130458, 0.0982400361,
+                    0.0000000000, 0.0000000000, 0.9912520182,
+                ]),
+                M3f64::new([
+                    0.9525523959, 0.0000000000, 0.0000936786,
+                    0.3439664498, 0.7281660966, -0.0721325464,
+                    0.0000000000, 0.0000000000, 1.0088251844,
+                ]),
+                Box::new(encode::linear),
+                Box::new(decode::linear),
+            )
+        };
+
+        /// ACEScg color space. AP1 primaries.
+        /// Data taken from https://en.wikipedia.org/wiki/Academy_Color_Encoding_System
+        pub static ref ACES_CG: ColorSpaceRGB<f64> = {
+            ColorSpaceRGB::new(
+                XYYf64 { x: 0.713, y: 0.293, Y: 1.0},
+                XYYf64 { x: 0.165, y: 0.830, Y: 1.0},
+                XYYf64 { x: 0.128, y: 0.044, Y: 1.0},
+                XYYf64 {
+                    x: 0.32168,
+                    y: 0.33767,
+                    Y: 1.0,
+                },
+                Box::new(encode::linear),
+                Box::new(decode::linear),
+            )
+        };
+
+        /// Adobe RGB (1998)
+        /// Data taken from
+        /// https://www.adobe.com/digitalimag/pdfs/AdobeRGB1998.pdf
+        pub static ref ADOBE_RGB_1998: ColorSpaceRGB<f64> = {
+            ColorSpaceRGB::new_with_specified_matrices(
+                XYYf64 { x: 0.6400, y: 0.3300, Y: 1.0},
+                XYYf64 { x: 0.2100, y: 0.7100, Y: 1.0},
+                XYYf64 { x: 0.1500, y: 0.0600, Y: 1.0},
+                XYYf64 {
+                    x: 0.3127,
+                    y: 0.3290,
+                    Y: 1.0,
+                },
+                M3f64::new([
+                    2.04159, -0.56501, -0.34473,
+                    -0.96924, 1.87597, 0.04156,
+                    0.01344, -0.11836, 1.01517,
+                ]),
+                M3f64::new([
+                    0.57667, 0.18556, 0.18823,
+                    0.29734, 0.62736, 0.07529,
+                    0.02703, 0.07069, 0.99134,
+                ]),
+                Box::new(|c: RGBf64| c.powf(1.0 / 2.19921875)),
+                Box::new(|c: RGBf64| c.powf(2.19921875)),
+            )
+        };
+
+        /// ARRI Alexa Wide Gamut.
+        /// Data taken from "Alexa LogC Curve in VFX"
+        pub static ref ALEXA_WIDE_GAMUT: ColorSpaceRGB<f64> = {
+            ColorSpaceRGB::new_with_specified_matrices(
+                XYYf64 { x: 0.6840, y: 0.3130, Y: 1.0},
+                XYYf64 { x: 0.2210, y: 0.8480, Y: 1.0},
+                XYYf64 { x: 0.0861, y: -0.102, Y: 1.0},
+                XYYf64 {
+                    x: 0.3127,
+                    y: 0.3290,
+                    Y: 1.0,
+                },
+                M3f64::new([
+                    1.789066, -0.482534, -0.200076,
+                    -0.639849, 1.396400, 0.194432,
+                    -0.041532, 0.082335, 0.878868,
+                ]),
+                M3f64::new([
+                    0.638008, 0.214704, 0.097744,
+                    0.291954, 0.823841, -0.115795,
+                    0.002798, -0.067034, 1.153294,
+                ]),
+                Box::new(encode::alexa_logc_v3),
+                Box::new(decode::alexa_logc_v3),
+            )
+        };
+    }
 }
 
 pub mod model_f32 {
@@ -949,7 +953,8 @@ mod test {
 
     #[test]
     fn checker_u8_srgb() {
-        let xyz_to_rgb_mtx = xyz_to_rgb_matrix(model_f64::SRGB.white, &model_f64::SRGB);
+        let xyz_to_rgb_mtx =
+            xyz_to_rgb_matrix(model_f64::SRGB.white, &model_f64::SRGB);
         for name in colorchecker::NAMES.iter() {
             let xyz_ref = colorchecker::XYZ_D65[*name];
             // xyz to rgb
@@ -981,11 +986,25 @@ mod test {
     #[test]
     fn checker_aces0() {
         println!("aces xyz_to_rgb mtx {:?}", model_f64::ACES.xf_xyz_to_rgb);
-        println!("srgb wp: {:?} {:?}", model_f64::SRGB.white, crate::xyz::XYZf64::from(model_f64::SRGB.white));
-        println!("aces wp: {:?} {:?}", model_f64::ACES.white, crate::xyz::XYZf64::from(model_f64::ACES.white));
-        let cat: M3f64 = crate::chromatic_adaptation::cat02(model_f64::SRGB.white, model_f64::ACES.white);
+        println!(
+            "srgb wp: {:?} {:?}",
+            model_f64::SRGB.white,
+            crate::xyz::XYZf64::from(model_f64::SRGB.white)
+        );
+        println!(
+            "aces wp: {:?} {:?}",
+            model_f64::ACES.white,
+            crate::xyz::XYZf64::from(model_f64::ACES.white)
+        );
+        let cat: M3f64 = crate::chromatic_adaptation::cat02(
+            model_f64::SRGB.white,
+            model_f64::ACES.white,
+        );
         println!("cat02: {:?}", cat);
-        let brad: M3f64 = crate::chromatic_adaptation::bradford(model_f64::SRGB.white, model_f64::ACES.white);
+        let brad: M3f64 = crate::chromatic_adaptation::bradford(
+            model_f64::SRGB.white,
+            model_f64::ACES.white,
+        );
         println!("bradford: {:?}", brad);
         rgb_workout(
             &model_f64::ACES,

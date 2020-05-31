@@ -72,7 +72,7 @@ where
     #[rustfmt::skip]
     let M_A = Matrix33::<T>::new([
         0.4002400,  0.7076000, -0.0808100,
-        -0.2263000,  1.1653200,  0.0457000,
+       -0.2263000,  1.1653200,  0.0457000,
         0.0000000,  0.0000000,  0.9182200,
     ]);
     #[rustfmt::skip]
@@ -119,28 +119,20 @@ where
         return Matrix33::<T>::make_identity();
     }
 
-    println!("xyz_w: {}", wp_src);
-    println!("xyz_wr: {}", wp_dst);
-
     let wp_src = wp_src;
     let wp_dst = wp_dst;
 
     #[rustfmt::skip]
     let M_A = Matrix33::<T>::new([
         0.7328, 0.4296, -0.1624,
-        -0.7036, 1.6975, 0.0061,
-        0.0030, 0.0136, 0.9834,
+       -0.7036, 1.6975,  0.0061,
+        0.0030, 0.0136,  0.9834,
     ]);
     #[rustfmt::skip]
     let M_A_inv = M_A.inverse().unwrap();
-    println!("M_inv: {:?}", M_A_inv);
 
     let wp_src_A = M_A * wp_src;
     let wp_dst_A = M_A * wp_dst;
-
-    println!("wp_r: {}", wp_dst_A);
-    println!("wp  : {}", wp_src_A);
-    println!("D: {}", wp_dst_A / wp_src_A);
 
     let M_wp = Matrix33::new([
         wp_dst_A.x / wp_src_A.x,

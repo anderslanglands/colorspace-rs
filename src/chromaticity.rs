@@ -1,4 +1,4 @@
-//! xyY coordinates
+//! xyY coordinates and conversion to and from [XYZ]
 use super::xyz::XYZ;
 use std::convert::From;
 

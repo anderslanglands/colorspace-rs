@@ -8,8 +8,6 @@
  convert between spectral, XYZ, L'a'b' and RGB spaces of various flavors such as
  sRGB, ACES, DCI P3 and ALEXA Wide Gamut then this is the crate for you.
  
- Note that currently the results of the spectral->XYZ conversions are not as accurate as they could be, due to not being implemented according to spec, but the results should be "good enough" for casual visual inspection. Be aware that future versions of the library will change some decimal places as the accuracy is improved.
-
  ## Types
  ### Tristimulus 
  The library contains two main types for working with color values: `XYZ` and `RGBf32`. These are both 32-bit floating point and have common component-wise math operations defined for them.
@@ -22,20 +20,24 @@
  ## Examples
  ### Spectral to 8-bit, gamma-encoded sRGB conversion
  ```rust
- // The prelude brings in common types
- use colorspace::prelude::*;
- // Convert the spectral data for a measured MacBeth chart swatch to XYZ
- // using the CIE 1931 2-degree CMFs and a D65 illuminant
- let xyz = babel_average::spd["dark_skin"]
-     .to_xyz_with_illuminant(&illuminant::D65.spd);
- // Convert the XYZ value to scene-referred (i.e. linear) sRGB
- let xf_xyz_to_srgb = xyz_to_rgb_matrix(sRGB.white, &sRGB);
- let rgb = xyz_to_rgb(&xf_xyz_to_srgb, xyz);
- // Convert the scene-referred sRGB value to an 8-bit, display-referred
- // value by applying the opto-electrical transfer function and using RGBu8's
- // From<RGBf32> impl
- let rgb: RGBu8 = (sRGB.oetf)(rgb).into();
- assert_eq!(rgb, rgbu8(115, 82, 68));
+use colorspace::*;
+
+// Convert the spectral data for a measured MacBeth chart swatch to XYZ
+// using the CIE 1931 2-degree CMFs and a D65 illuminant
+let xyz = colorchecker::SPECTRAL["dark_skin"]
+.to_xyz(&illuminant::spd::D65, &cmf::CIE_1931_2_DEGREE);
+
+// Convert the XYZ value to scene-referred (i.e. linear) sRGB
+let model_srgb = &color_space_rgb::model_f64::SRGB;
+let xf_xyz_to_srgb = xyz_to_rgb_matrix(model_srgb.white, model_srgb);
+let rgb = xyz_to_rgb(&xf_xyz_to_srgb, xyz);
+
+// Convert the scene-referred sRGB value to an 8-bit, display-referred
+// value by applying the opto-electrical transfer function and using RGBu8's
+// From<RGBf32> impl
+let rgb: RGBu8 = (model_srgb.oetf)(rgb).into();
+
+assert_eq!(rgb, rgbu8(115, 82, 68));
  ```
  
  ## Licence

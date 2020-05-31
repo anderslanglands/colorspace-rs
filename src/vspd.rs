@@ -7,11 +7,14 @@ use float_cmp::{ApproxEq, F64Margin};
 
 use itertools::izip;
 
-use crate::cmf::CMF;
-use crate::interpolation::{
-    ExtrapolatorConstant, InterpolatorSprague, SpragueCoefficients,
+use crate::{
+    cmf::CMF,
+    illuminant,
+    interpolation::{
+        ExtrapolatorConstant, InterpolatorSprague, SpragueCoefficients,
+    },
+    xyz::{xyz, XYZf64},
 };
-use crate::xyz::{xyz, XYZf64};
 
 #[derive(Display, PartialEq, PartialOrd, Copy, Clone)]
 #[display(fmt = "({}, {}, {})", start, end, interval)]
@@ -152,6 +155,7 @@ impl ApproxEq for Sample {
     }
 }
 
+use super::spd::SPD;
 /// A Varying Spectral Power Distribution. Stores a list of [Sample]s,
 /// i.e. paired wavelength and power values. Wavelengths are assumed to be in
 /// nanometres.
@@ -223,7 +227,7 @@ impl VSPD {
         VSPD { samples, shape }
     }
 
-    /// Create a new [VSPD] of the given [SpdShape] with all [Samples]
+    /// Create a new [VSPD] of the given [SpdShape] with all [Sample]s
     /// initialized to the given `value`.
     /// # Panics
     /// If the `samples` vector has less than 2 samples.
@@ -423,8 +427,8 @@ impl VSPD {
     /// this SPD has any other intervals it will be copied and interpolated
     /// before conversion.
     /// # Arguments
-    /// * `illuminant` - The reference illuminant to use, e.g. [D65](struct@illuminant::D65)
-    /// * `cmf` - The set of color-matching functions to use, e.g. [CIE 1931 2-degree standard observer](struct@cmf::CIE_1931_2_DEGREE)
+    /// * `illuminant` - The reference illuminant to use, e.g. [static@illuminant::spd::D65]
+    /// * `cmf` - The set of color-matching functions to use, e.g. [cmf::CIE_1931_2_DEGREE)
     /// # Returns
     /// An XYZf64 normalized to 100.0 as the perfect diffuser.
     pub fn to_xyz(&self, illuminant: &VSPD, cmf: &CMF) -> XYZf64 {
