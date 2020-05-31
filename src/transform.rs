@@ -5,13 +5,20 @@ use super::math::*;
 use super::rgb::*;
 use super::xyz::*;
 
-pub fn xyz_to_rgb_matrix<T>(xyz_white: XYY<T>, color_space_rgb: &ColorSpaceRGB<T>) -> Matrix33<T>
+/// Create a matrix to go from XYZ to the given colour space, assuming `xyz_white`
+/// is the reference white of the XYZ. CAT02 is used for the CAT.
+pub fn xyz_to_rgb_matrix<T>(
+    xyz_white: XYY<T>,
+    color_space_rgb: &ColorSpaceRGB<T>,
+) -> Matrix33<T>
 where
     T: Real,
 {
     color_space_rgb.xf_xyz_to_rgb * cat02(xyz_white, color_space_rgb.white)
 }
 
+/// Create a matrix to go from XYZ to the given colour space, using the given CAT
+/// matrix
 pub fn xyz_to_rgb_matrix_with_cat<T>(
     cat_mtx: &Matrix33<T>,
     color_space_rgb: &ColorSpaceRGB<T>,
@@ -22,13 +29,19 @@ where
     color_space_rgb.xf_xyz_to_rgb * (*cat_mtx)
 }
 
-pub fn rgb_to_xyz_matrix<T>(xyz_white: XYY<T>, color_space_rgb: &ColorSpaceRGB<T>) -> Matrix33<T>
+/// Create a mtrix to go from the given RGB space to XYZ, with the given XYZ
+/// white point.
+pub fn rgb_to_xyz_matrix<T>(
+    xyz_white: XYY<T>,
+    color_space_rgb: &ColorSpaceRGB<T>,
+) -> Matrix33<T>
 where
     T: Real,
 {
     cat02(color_space_rgb.white, xyz_white) * color_space_rgb.xf_rgb_to_xyz
 }
 
+/// Convert `xyz` to RGB using the given matrix
 pub fn xyz_to_rgb<T>(mtx: &Matrix33<T>, xyz: XYZ<T>) -> RGBf<T>
 where
     T: Real,
@@ -37,6 +50,7 @@ where
     rgbf(x.x, x.y, x.z)
 }
 
+/// Convert a slice of XYZ to RGB with the given matrix
 pub fn xyz_slice_to_rgb<T>(mtx: &Matrix33<T>, xyzs: &[XYZ<T>]) -> Vec<RGBf<T>>
 where
     T: Real,
@@ -50,6 +64,7 @@ where
     result
 }
 
+/// Convert a single [RGBf] to [XYZ] using the given [Matrix33]
 pub fn rgb_to_xyz<T>(mtx: &Matrix33<T>, rgb: RGBf<T>) -> XYZ<T>
 where
     T: Real,
@@ -58,6 +73,10 @@ where
     XYZ::new(x.r, x.g, x.b) * XYZ::from_scalar(T::from(100.0).unwrap())
 }
 
+/// Create a [Matrix33] that will convert between the two given color spaces.
+///
+/// This includes chromatic adaptation between the white points specified in
+/// the color spaces provided.
 pub fn rgb_to_rgb_matrix<T>(
     from_space: &ColorSpaceRGB<T>,
     to_space: &ColorSpaceRGB<T>,
@@ -70,23 +89,50 @@ where
         * from_space.xf_rgb_to_xyz
 }
 
+/// Convert the [RGBf] in `from_space` to `to_space`, reading from `from` and
+/// writing to `to`.
+pub fn rgb_to_rgb<T, U>(
+    from_space: &ColorSpaceRGB<T>,
+    to_space: &ColorSpaceRGB<T>,
+    from: &[RGBf<T>],
+    to: &mut [U],
+) -> usize
+where
+    T: Real,
+    U: From<RGBf<T>>,
+{
+    let xf = rgb_to_rgb_matrix(from_space, to_space);
+    to.iter_mut()
+        .zip(from)
+        .map(|(t, f)| {
+            let f = from_space.decode(*f);
+            *t = to_space.encode(xf * f).into();
+        })
+        .count()
+}
+
 #[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
-pub fn xyz_slice_to_rgb_avx_planes<S:simdeez::Simd>(mtx: &M3f32, xs: &[f32], ys: &[f32], zs: &[f32]) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
+pub fn xyz_slice_to_rgb_avx_planes<S: simdeez::Simd>(
+    mtx: &M3f32,
+    xs: &[f32],
+    ys: &[f32],
+    zs: &[f32],
+) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
     let mut result_r = vec![0.0f32; xs.len()];
     let mut result_g = vec![0.0f32; xs.len()];
     let mut result_b = vec![0.0f32; xs.len()];
     let num_iters = xs.len() / S::VF32_WIDTH;
     let start_remaining = xs.len() - num_iters;
 
-    let m0 = unsafe { S::set1_ps(mtx.x[0])};
-    let m1 = unsafe { S::set1_ps(mtx.x[1])};
-    let m2 = unsafe { S::set1_ps(mtx.x[2])};
-    let m3 = unsafe { S::set1_ps(mtx.x[3])};
-    let m4 = unsafe { S::set1_ps(mtx.x[4])};
-    let m5 = unsafe { S::set1_ps(mtx.x[5])};
-    let m6 = unsafe { S::set1_ps(mtx.x[6])};
-    let m7 = unsafe { S::set1_ps(mtx.x[7])};
-    let m8 = unsafe { S::set1_ps(mtx.x[8])};
+    let m0 = unsafe { S::set1_ps(mtx.x[0]) };
+    let m1 = unsafe { S::set1_ps(mtx.x[1]) };
+    let m2 = unsafe { S::set1_ps(mtx.x[2]) };
+    let m3 = unsafe { S::set1_ps(mtx.x[3]) };
+    let m4 = unsafe { S::set1_ps(mtx.x[4]) };
+    let m5 = unsafe { S::set1_ps(mtx.x[5]) };
+    let m6 = unsafe { S::set1_ps(mtx.x[6]) };
+    let m7 = unsafe { S::set1_ps(mtx.x[7]) };
+    let m8 = unsafe { S::set1_ps(mtx.x[8]) };
 
     let scale = unsafe { S::set1_ps(0.01) };
 
@@ -94,9 +140,9 @@ pub fn xyz_slice_to_rgb_avx_planes<S:simdeez::Simd>(mtx: &M3f32, xs: &[f32], ys:
         unsafe {
             // First calculate memory indices for this loop operation
             // Gather memory to registers
-            let x = S::loadu_ps(xs.get_unchecked(i*S::VF32_WIDTH)) * scale;
-            let y = S::loadu_ps(ys.get_unchecked(i*S::VF32_WIDTH)) * scale;
-            let z = S::loadu_ps(zs.get_unchecked(i*S::VF32_WIDTH)) * scale;
+            let x = S::loadu_ps(xs.get_unchecked(i * S::VF32_WIDTH)) * scale;
+            let y = S::loadu_ps(ys.get_unchecked(i * S::VF32_WIDTH)) * scale;
+            let z = S::loadu_ps(zs.get_unchecked(i * S::VF32_WIDTH)) * scale;
 
             // Matrix multiplication
             let r = m0 * x;
@@ -112,9 +158,9 @@ pub fn xyz_slice_to_rgb_avx_planes<S:simdeez::Simd>(mtx: &M3f32, xs: &[f32], ys:
             let b = S::fmadd_ps(m8, z, b);
 
             // Store results
-            S::storeu_ps(result_r.get_unchecked_mut(i*S::VF32_WIDTH), r);
-            S::storeu_ps(result_g.get_unchecked_mut(i*S::VF32_WIDTH), g);
-            S::storeu_ps(result_b.get_unchecked_mut(i*S::VF32_WIDTH), b);
+            S::storeu_ps(result_r.get_unchecked_mut(i * S::VF32_WIDTH), r);
+            S::storeu_ps(result_g.get_unchecked_mut(i * S::VF32_WIDTH), g);
+            S::storeu_ps(result_b.get_unchecked_mut(i * S::VF32_WIDTH), b);
         }
     }
 
@@ -139,27 +185,42 @@ pub fn xyz_slice_to_rgb_avx_planes<S:simdeez::Simd>(mtx: &M3f32, xs: &[f32], ys:
 #[cfg(all(target_arch = "x86_64", target_feature = "avx"))]
 #[test]
 fn test_checker_xyz_to_rgb_avx_planes() {
-    use crate::math::*;
     use crate::colorchecker;
+    use crate::math::*;
     use float_cmp::{ApproxEq, F32Margin};
     use simdeez::avx2::*;
 
-    let xyz_to_rgb_mtx: M3f32 = xyz_to_rgb_matrix(model_f64::SRGB.white, &model_f64::SRGB).into();
+    let xyz_to_rgb_mtx: M3f32 =
+        xyz_to_rgb_matrix(model_f64::SRGB.white, &model_f64::SRGB).into();
 
-    let xs = colorchecker::NAMES.iter().map(|n| colorchecker::XYZ_D65[*n].x as f32).collect::<Vec<_>>();
-    let ys = colorchecker::NAMES.iter().map(|n| colorchecker::XYZ_D65[*n].y as f32).collect::<Vec<_>>();
-    let zs = colorchecker::NAMES.iter().map(|n| colorchecker::XYZ_D65[*n].z as f32).collect::<Vec<_>>();
+    let xs = colorchecker::NAMES
+        .iter()
+        .map(|n| colorchecker::XYZ_D65[*n].x as f32)
+        .collect::<Vec<_>>();
+    let ys = colorchecker::NAMES
+        .iter()
+        .map(|n| colorchecker::XYZ_D65[*n].y as f32)
+        .collect::<Vec<_>>();
+    let zs = colorchecker::NAMES
+        .iter()
+        .map(|n| colorchecker::XYZ_D65[*n].z as f32)
+        .collect::<Vec<_>>();
 
-    let (rr, rg, rb) = xyz_slice_to_rgb_avx_planes::<Avx2>(&xyz_to_rgb_mtx, &xs, &ys, &zs);
+    let (rr, rg, rb) =
+        xyz_slice_to_rgb_avx_planes::<Avx2>(&xyz_to_rgb_mtx, &xs, &ys, &zs);
 
     use itertools::izip;
-    for (r, g, b, name) in izip!(rr.into_iter(), rg.into_iter(), rb.into_iter(), colorchecker::NAMES.iter()) {
+    for (r, g, b, name) in izip!(
+        rr.into_iter(),
+        rg.into_iter(),
+        rb.into_iter(),
+        colorchecker::NAMES.iter()
+    ) {
         let rgb = rgbf32(r, g, b);
         let rgb_ref = RGBf32::from(colorchecker::SRGB_LINEAR[*name]);
         println!("{} rgb: {}", name, rgb);
         println!("{} ref: {}", name, rgb_ref);
-        assert!(
-            rgb.approx_eq(
+        assert!(rgb.approx_eq(
             rgb_ref,
             F32Margin {
                 epsilon: 1e-7,
@@ -167,5 +228,4 @@ fn test_checker_xyz_to_rgb_avx_planes() {
             }
         ));
     }
-    
 }

@@ -21,7 +21,8 @@ impl CMF {
         self.x_bar.shape()
     }
 
-    /// Aligns the CMF to the given [SpdShape]
+    /// Aligns the CMF to the given [SpdShape] by calling [VSPD::align()] for
+    /// each [VSPD]
     pub fn align(&self, shape: SpdShape<f64>) -> CMF {
         CMF {
             x_bar: self.x_bar.align(shape),

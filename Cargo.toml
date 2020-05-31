@@ -3,6 +3,16 @@ name = "colorspace"
 version = "0.1.0"
 authors = ["Anders Langlands <anderslanglands@gmail.com>"]
 edition = "2018"
+readme = "README.md"
+license = "Apache-2.0"
+description = "A crate for colorimetry covering spectral, RGB, XYZ, L*a'b' and conversions thereof"
+documentation = "https://docs.rs/colorspace-rs/0.1.0/"
+repository = "https://github.com/anderslanglands/colorspace-rs"
+keywords = ["color", "colour", "colorimetry", "graphics"]
+categories = ["computer-vision", "graphics", "multimedia", "rendering"]
+
+[badges]
+travis-ci = {repository = "anderslanglands/colorspace-rs", branch="master"}
 
 [dependencies]
 derive_more = "0.15.0"
