@@ -49,7 +49,7 @@
 //! let rgb: RGBu8 = model_srgb.encode(rgb).into();
 //!
 //! assert_eq!(rgb, rgbu8(115, 82, 68));
-//! ``
+//! ```
 //!
 //! ## Licence
 //! Copyright [2018-2020] [Anders Langlands]
