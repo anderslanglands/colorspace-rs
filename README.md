@@ -6,10 +6,10 @@
 
 [Build Status]: https://img.shields.io/travis/anderslanglands/colorspace-rs/master?style=for-the-badge
 [travis]: https://travis-ci.com/anderslanglands/colorspace-rs
-[Latest Version]: https://img.shields.io/crates/v/colorspace-rs.svg?style=for-the-badge
-[crates.io]: https://crates.io/crates/colorspace-rs
+[Latest Version]: https://img.shields.io/crates/v/colorspace.svg?style=for-the-badge
+[crates.io]: https://crates.io/crates/colorspace
 [Docs Badge]:https://img.shields.io/badge/docs.rs-rustdoc-green?style=for-the-badge
-[docs.rs]:https://docs.rs/colorspace-rs
+[docs.rs]:https://docs.rs/colorspace
 
 
  A crate for colorimetry in Rust.

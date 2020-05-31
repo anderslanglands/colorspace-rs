@@ -1,5 +1,15 @@
 //!
-//! [![Build Status](https://travis-ci.com/anderslanglands/colorspace-rs.svg?branch=master)](https://travis-ci.com/anderslanglands/colorspace-rs)
+//! | | | |
+//! |-|-|-|
+//! | [![Build Status]][travis] | [![Latest Version]][crates.io] | [![Docs Badge]]//! [docs.rs] |
+//!
+//! [Build Status]: https://img.shields.io/travis/anderslanglands/colorspace-rs/master?style=for-the-badge
+//! [travis]: https://travis-ci.com/anderslanglands/colorspace-rs
+//! [Latest Version]: https://img.shields.io/crates/v/colorspace.svg? style=for-the-badge
+//! [crates.io]: https://crates.io/crates/colorspace
+//! [Docs Badge]:https://img.shields.io/badge/docs.rs-rustdoc-green? style=for-the-badge
+//! [docs.rs]:https://docs.rs/colorspace
+//!
 //!
 //! # colorspace
 //!
