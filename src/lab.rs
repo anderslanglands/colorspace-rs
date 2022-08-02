@@ -56,6 +56,74 @@ pub fn xyz_to_lab<T, X1: Into<XYZ<T>>, X2: Into<XYZ<T>> >(xyz: X1, ref_white: X2
     lab(116.0 * f_y - 16.0, 500.0 * (f_x - f_y), 200.0 * (f_y - f_z))
 }
 
+// adapted from http://www.brucelindbloom.com/index.html?Eqn_Lab_to_XYZ.html
+/// Convert a Lab color to a Lab colour with the given reference white.
+/// Lab colours are normally specified relative to D50, so if your XYZ is
+/// relative to something else, you might want to adapt it after using the
+/// chromatic_adaptation module.
+#[replace_float_literals(T::from(literal).unwrap())]
+pub fn lab_to_xyz<T, X1: Into<Lab<T>>, X2: Into<XYZ<T>>>(
+    lab: X1,
+    ref_white: X2,
+) -> XYZ<T>
+where
+    T: Real,
+{
+    let lab: Lab<T> = lab.into();
+    let ref_white: XYZ<T> = ref_white.into();
+
+    let epsilon = 216.0 / 24389.0;
+    let kappa = 24389.0 / 27.0;
+
+    let f_y = (lab.L + 16.0) / 116.0;
+    let f_z = f_y - (lab.b / 200.0);
+    let f_x = (lab.a / 500.0) + f_y;
+
+    let f_x3 = f_x.powi(3);
+    let x_r = if f_x3 > epsilon {
+        f_x3
+    } else {
+        ((116.0 * f_x) - 16.0) / kappa
+    };
+
+    let y_r = if lab.L > (kappa * epsilon) {
+        ((lab.L + 16.0) / 116.0).powi(3)
+    } else {
+        lab.L / kappa
+    };
+
+    let f_z3 = f_z.powi(3);
+    let z_r = if f_z3 > epsilon {
+        f_z3
+    } else {
+        ((116.0 * f_z) - 16.0) / kappa
+    };
+
+    XYZ::new(x_r, y_r, z_r) * ref_white
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn test_lab_xyz_conversions() {
+    let d50: XYZ<f64> = crate::illuminant::xy::D50.into();
+    let epsilon = 2e-12_f64; // max acceptable difference for a round trip converstion
+
+    for L in (0..100).step_by(2).map(|f| f as f64) {
+        for a in (-127..127).step_by(2).map(|f| f as f64) {
+            for b in (-127..127).step_by(2).map(|f| f as f64) {
+                let lab = Lab { L, a, b }; // Take a series of arbitrary but reasonable points in Lab space
+                let xyz = lab_to_xyz(lab, d50); // convert them to xyz
+                let lab_2: Lab<f64> = xyz_to_lab(xyz, d50); // then convert them back
+
+                // and ensure that what we started and ended with has no more than minor rounding errors
+                assert!((lab.L - lab_2.L).abs() < epsilon);
+                assert!((lab.a - lab_2.a).abs() < epsilon);
+                assert!((lab.b - lab_2.b).abs() < epsilon);
+            }
+        }
+    }
+}
+
 /// Compute the difference between two L*a*b* colors according to the CIE 1976
 /// formula.
 #[allow(non_snake_case)]
