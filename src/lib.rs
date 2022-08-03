@@ -137,4 +137,4 @@ pub use lab::delta_E_2000 as delta_E;
 pub use lab::{lab, xyz_to_lab, Lab};
 
 pub mod photometry;
-pub use photometry::spd_to_lumens;
+pub use photometry::spd_to_nit;
