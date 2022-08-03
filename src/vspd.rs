@@ -896,6 +896,38 @@ impl<'a> ApproxEq for &'a VSPD {
     }
 }
 
+impl std::ops::Div<f64> for VSPD {
+    type Output = Self;
+
+    fn div(self, rhs: f64) -> VSPD {
+        self.samples().iter().map(|s| { Sample {nm: s.nm, v: s.v / rhs}}).collect()
+    }
+}
+
+impl std::ops::Div<f64> for &VSPD {
+    type Output = VSPD;
+
+    fn div(self, rhs: f64) -> VSPD {
+        self.samples().iter().map(|s| { Sample {nm: s.nm, v: s.v / rhs}}).collect()
+    }
+}
+
+impl std::ops::Mul<f64> for VSPD {
+    type Output = Self;
+
+    fn mul(self, rhs: f64) -> VSPD {
+        self.samples().iter().map(|s| { Sample {nm: s.nm, v: s.v * rhs}}).collect()
+    }
+}
+
+impl std::ops::Mul<f64> for &VSPD {
+    type Output = VSPD;
+
+    fn mul(self, rhs: f64) -> VSPD {
+        self.samples().iter().map(|s| { Sample {nm: s.nm, v: s.v * rhs}}).collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
