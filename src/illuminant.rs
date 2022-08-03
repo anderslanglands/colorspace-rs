@@ -1,5 +1,6 @@
 pub mod xy {
-    use crate::*;
+    use crate::{*, math::Real};
+    use numeric_literals::replace_float_literals;
 
     pub const D50: XYY<f64> = XYY {
         x: 0.34570,
@@ -32,6 +33,38 @@ pub mod xy {
         Y: 1.0,
     };
 
+    /// Calculate the xy coordinates of a D illuminant with the given 
+    /// correlated color temperature
+    #[replace_float_literals(T::from(literal).unwrap())]
+    pub fn cct<T>(t: T) -> Result<XYY<T>, ()> where T: Real {
+        let t2 = t * t;
+        let t3 = t2 * t;
+        if t < 4000.0 || t > 25000.0 {
+            Err(())
+        } else if t <= 7000.0 {
+            let xd = -4.607e9 / t3 + 2.9678e6 / t2 + 0.09911e3 / t + 0.244063;
+            let yd = -3.0 * xd * xd + 2.870 * xd -0.275;
+            Ok(XYY::<T>::new(xd, yd, 1.0))
+        } else {
+            let xd = -2.0064e9 / t3 + 1.9018e6 / t2 + 0.24748e3 / t + 0.237040;
+            let yd = -3.0 * xd * xd + 2.870 * xd -0.275;
+            Ok(XYY::<T>::new(xd, yd, 1.0))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::xy::cct;
+
+    #[test]
+    fn test_cct() {
+        let xy4000 = cct(4000.0).unwrap();
+        println!("4000: ({}, {})", xy4000.x, xy4000.y);
+
+        let xy6504 = cct(6504.0).unwrap();
+        println!("6504: ({}, {})", xy6504.x, xy6504.y);
+    }
 }
 
 pub mod spd {
