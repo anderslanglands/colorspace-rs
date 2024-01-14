@@ -9,7 +9,6 @@ use itertools::izip;
 
 use crate::{
     cmf::CMF,
-    illuminant,
     interpolation::{
         ExtrapolatorConstant, InterpolatorSprague, SpragueCoefficients,
     },
@@ -155,7 +154,6 @@ impl ApproxEq for Sample {
     }
 }
 
-use super::spd::SPD;
 /// A Varying Spectral Power Distribution. Stores a list of [Sample]s,
 /// i.e. paired wavelength and power values. Wavelengths are assumed to be in
 /// nanometres.
