@@ -2,10 +2,7 @@
 
 use super::math::*;
 use std::fmt;
-use std::{
-    convert::TryInto,
-    ops::{Index, IndexMut},
-};
+use std::ops::{Index, IndexMut};
 
 use float_cmp::{ApproxEq, F32Margin, F64Margin};
 
